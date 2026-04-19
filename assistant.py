@@ -1,0 +1,578 @@
+#!/usr/bin/env python3
+"""
+Assistant vocal Edge AI pour Raspberry Pi Zero 2W
+Wake word → STT (Faster-Whisper) → LLM (llama-cpp / API) → TTS (piper/pyttsx3)
+Optimisé pour 512 MB de RAM.
+
+Détection du mot d'éveil : openWakeWord (100% gratuit, open-source, ONNX)
+LLM : SmolLM2 135M Q8 (~150 MB RAM)
+"""
+
+import os
+import gc
+import time
+import wave
+import struct
+import logging
+import tempfile
+import argparse
+import threading
+from pathlib import Path
+from typing import Optional, Generator
+
+import numpy as np
+import pyaudio
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("assistant")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuration centrale (modifiez ici selon votre setup)
+# ─────────────────────────────────────────────────────────────────────────────
+class Config:
+    # ── Audio ──────────────────────────────────────────────────────────────
+    SAMPLE_RATE: int = 16_000          # Hz – requis par Whisper & openWakeWord
+    CHANNELS: int = 1
+    FORMAT = pyaudio.paInt16
+    CHUNK_SIZE: int = 1280             # frames par buffer (openWakeWord exige 1280)
+    RECORD_SILENCE_THRESHOLD: float = 0.015   # RMS pour détecter le silence
+    RECORD_SILENCE_DURATION: float = 1.5      # secondes de silence avant arrêt
+    MAX_RECORD_SECONDS: float = 15.0           # limite de sécurité
+
+    # ── Wake word (openWakeWord — 100% gratuit, aucune clé requise) ────────
+    # Mots disponibles nativement : "hey_jarvis", "alexa", "hey_mycroft",
+    #   "hey_rhasspy", "ok_nabu", "hey_google" (via modèle ONNX intégré)
+    # Sensibilité [0.0 – 1.0] : plus élevée = plus de faux positifs
+    WAKE_WORD: str = "hey_google"
+    WAKE_WORD_THRESHOLD: float = 0.5
+
+    # ── STT (Faster-Whisper) ───────────────────────────────────────────────
+    WHISPER_MODEL: str = "tiny"        # "tiny" (~75 MB) ou "tiny.en" (anglais seul)
+    WHISPER_LANGUAGE: str = "fr"       # None = détection automatique
+    WHISPER_DEVICE: str = "cpu"
+    WHISPER_COMPUTE_TYPE: str = "int8" # int8 = moins de RAM, plus rapide sur CPU
+
+    # ── LLM ───────────────────────────────────────────────────────────────
+    # Mode: "local" (llama-cpp) ou "api" (OpenAI-compatible, ex: Ollama local)
+    LLM_MODE: str = "local"
+
+    # Paramètres llama-cpp (mode "local")
+    # SmolLM2 135M Q8 : ~150 MB RAM, très rapide sur CPU ARM
+    # https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF
+    LLM_MODEL_PATH: str = str(Path.home() / "models" / "SmolLM2-135M-Instruct-Q8_0.gguf")
+    LLM_N_CTX: int = 512              # contexte réduit pour économiser la RAM
+    LLM_N_THREADS: int = 4            # Zero 2W a 4 cœurs
+    LLM_N_GPU_LAYERS: int = 0         # pas de GPU sur Zero 2W
+    LLM_MAX_TOKENS: int = 150         # réponses courtes
+    LLM_TEMPERATURE: float = 0.7
+
+    # Paramètres API (mode "api")
+    LLM_API_BASE: str = os.getenv("LLM_API_BASE", "http://localhost:11434/v1")
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY", "ollama")
+    LLM_API_MODEL: str = os.getenv("LLM_API_MODEL", "smollm2:135m")
+
+    # Prompt système – gardez-le court pour économiser les tokens
+    SYSTEM_PROMPT: str = (
+        "Tu es un assistant vocal compact. "
+        "Réponds en français, de façon concise (1-3 phrases maximum). "
+        "Pas de listes, pas de markdown."
+    )
+
+    # ── TTS ────────────────────────────────────────────────────────────────
+    # Mode: "piper" (qualité supérieure) ou "pyttsx3" (plus simple)
+    TTS_MODE: str = "piper"
+
+    # Piper : chemin vers le binaire et le modèle de voix
+    # Téléchargez : https://github.com/rhasspy/piper/releases
+    PIPER_BINARY: str = str(Path.home() / "piper" / "piper")
+    PIPER_MODEL: str = str(Path.home() / "piper" / "fr_FR-upmc-medium.onnx")
+
+    # pyttsx3 – taux de parole (mots/min)
+    PYTTSX3_RATE: int = 175
+
+
+cfg = Config()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Module Audio utilitaire
+# ─────────────────────────────────────────────────────────────────────────────
+class AudioManager:
+    """Gère le flux PyAudio. Un seul objet partagé pour économiser les FD."""
+
+    def __init__(self):
+        self._pa = pyaudio.PyAudio()
+        self._input_device = self._find_input_device()
+        self._output_device = self._find_output_device()
+        log.info(
+            "Périphérique entrée : %s | sortie : %s",
+            self._input_device,
+            self._output_device,
+        )
+
+    def _find_input_device(self) -> Optional[int]:
+        """Retourne l'index du premier périphérique d'entrée disponible."""
+        for i in range(self._pa.get_device_count()):
+            info = self._pa.get_device_info_by_index(i)
+            if info["maxInputChannels"] > 0:
+                return i
+        return None
+
+    def _find_output_device(self) -> Optional[int]:
+        for i in range(self._pa.get_device_count()):
+            info = self._pa.get_device_info_by_index(i)
+            if info["maxOutputChannels"] > 0:
+                return i
+        return None
+
+    def open_input_stream(self, frames_per_buffer: int = cfg.CHUNK_SIZE):
+        return self._pa.open(
+            rate=cfg.SAMPLE_RATE,
+            channels=cfg.CHANNELS,
+            format=cfg.FORMAT,
+            input=True,
+            input_device_index=self._input_device,
+            frames_per_buffer=frames_per_buffer,
+        )
+
+    def terminate(self):
+        self._pa.terminate()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1) Détection du mot d'éveil (openWakeWord — gratuit, open-source)
+# ─────────────────────────────────────────────────────────────────────────────
+class WakeWordDetector:
+    """
+    Utilise openWakeWord pour la détection du mot d'éveil.
+    100% gratuit, aucune clé API, modèles ONNX embarqués.
+    Empreinte mémoire < 20 MB.
+    Chunk size requis : 1280 samples à 16 kHz (80 ms).
+    """
+
+    def __init__(self, audio: AudioManager):
+        from openwakeword.model import Model
+        # Les modèles intégrés sont téléchargés automatiquement au premier lancement
+        # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
+        self._model = Model(
+            wakeword_models=[cfg.WAKE_WORD],
+            inference_framework="onnx",
+        )
+        self._audio = audio
+        self._threshold = cfg.WAKE_WORD_THRESHOLD
+        log.info(
+            "openWakeWord prêt — mot d'éveil : « %s » (seuil=%.2f)",
+            cfg.WAKE_WORD, self._threshold,
+        )
+
+    def listen_for_wake_word(self) -> bool:
+        """Bloque jusqu'à la détection du mot d'éveil. Retourne True."""
+        stream = self._audio.open_input_stream(frames_per_buffer=cfg.CHUNK_SIZE)
+        # Réinitialise les scores pour éviter les déclenchements résiduels
+        self._model.reset()
+        try:
+            log.info("En attente du mot d'éveil…")
+            while True:
+                pcm_bytes = stream.read(cfg.CHUNK_SIZE, exception_on_overflow=False)
+                # openWakeWord attend un tableau numpy int16
+                audio_chunk = np.frombuffer(pcm_bytes, dtype=np.int16)
+                prediction = self._model.predict(audio_chunk)
+                # prediction est un dict {"hey_google": score, ...}
+                score = prediction.get(cfg.WAKE_WORD, 0.0)
+                if score >= self._threshold:
+                    log.info("✅ Mot d'éveil détecté ! (score=%.3f)", score)
+                    return True
+        finally:
+            stream.stop_stream()
+            stream.close()
+
+    def delete(self):
+        # Pas de ressource externe à libérer pour openWakeWord
+        pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2) Enregistrement de la requête utilisateur
+# ─────────────────────────────────────────────────────────────────────────────
+def record_utterance(audio: AudioManager) -> Optional[str]:
+    """
+    Enregistre l'audio après le mot d'éveil jusqu'au silence.
+    Retourne le chemin vers le fichier WAV temporaire, ou None si vide.
+    """
+    log.info("🎙️  Enregistrement…")
+    stream = audio.open_input_stream(frames_per_buffer=1024)
+    frames = []
+    silent_chunks = 0
+    silence_limit = int(
+        cfg.RECORD_SILENCE_DURATION * cfg.SAMPLE_RATE / 1024
+    )
+    max_chunks = int(cfg.MAX_RECORD_SECONDS * cfg.SAMPLE_RATE / 1024)
+
+    try:
+        for _ in range(max_chunks):
+            data = stream.read(1024, exception_on_overflow=False)
+            frames.append(data)
+            # Calcul du RMS pour détecter le silence
+            arr = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+            rms = np.sqrt(np.mean(arr ** 2)) / 32768.0
+            if rms < cfg.RECORD_SILENCE_THRESHOLD:
+                silent_chunks += 1
+                if silent_chunks >= silence_limit and len(frames) > silence_limit:
+                    break
+            else:
+                silent_chunks = 0
+    finally:
+        stream.stop_stream()
+        stream.close()
+
+    if not frames:
+        return None
+
+    # Sauvegarde dans un fichier temporaire (sera supprimé après transcription)
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    with wave.open(tmp.name, "wb") as wf:
+        wf.setnchannels(cfg.CHANNELS)
+        wf.setsampwidth(2)  # 16-bit
+        wf.setframerate(cfg.SAMPLE_RATE)
+        wf.writeframes(b"".join(frames))
+    log.info("Audio enregistré : %s (%.1f s)", tmp.name, len(frames) * 1024 / cfg.SAMPLE_RATE)
+    return tmp.name
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3) STT — Faster-Whisper
+# ─────────────────────────────────────────────────────────────────────────────
+class WhisperTranscriber:
+    """
+    Charge le modèle Whisper une seule fois pour économiser la RAM.
+    Utilise int8 pour réduire l'empreinte mémoire (~40 MB pour tiny).
+    """
+
+    def __init__(self):
+        log.info("Chargement de Whisper (%s / %s)…", cfg.WHISPER_MODEL, cfg.WHISPER_COMPUTE_TYPE)
+        from faster_whisper import WhisperModel
+        self._model = WhisperModel(
+            cfg.WHISPER_MODEL,
+            device=cfg.WHISPER_DEVICE,
+            compute_type=cfg.WHISPER_COMPUTE_TYPE,
+            download_root=str(Path.home() / ".cache" / "whisper"),
+            cpu_threads=cfg.LLM_N_THREADS,
+            num_workers=1,
+        )
+        log.info("Whisper prêt.")
+
+    def transcribe(self, wav_path: str) -> str:
+        """Transcrit un fichier WAV et retourne le texte."""
+        segments, info = self._model.transcribe(
+            wav_path,
+            language=cfg.WHISPER_LANGUAGE,
+            beam_size=1,           # beam=1 = plus rapide, moins de RAM
+            best_of=1,
+            vad_filter=True,       # filtre le bruit de fond
+        )
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        log.info("📝 Transcription [%s] : « %s »", info.language, text)
+        return text
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4) LLM — llama-cpp ou API
+# ─────────────────────────────────────────────────────────────────────────────
+class LLMEngine:
+    """Abstraction LLM : mode local (llama-cpp) ou API (OpenAI-compatible)."""
+
+    def __init__(self):
+        if cfg.LLM_MODE == "local":
+            self._init_local()
+        else:
+            self._init_api()
+        self._history = []  # historique de conversation en mémoire vive
+
+    def _init_local(self):
+        if not Path(cfg.LLM_MODEL_PATH).exists():
+            raise FileNotFoundError(
+                f"Modèle LLM introuvable : {cfg.LLM_MODEL_PATH}\n"
+                "Téléchargez un modèle GGUF et mettez à jour LLM_MODEL_PATH."
+            )
+        log.info("Chargement du LLM local : %s", cfg.LLM_MODEL_PATH)
+        from llama_cpp import Llama
+        self._llm = Llama(
+            model_path=cfg.LLM_MODEL_PATH,
+            n_ctx=cfg.LLM_N_CTX,
+            n_threads=cfg.LLM_N_THREADS,
+            n_gpu_layers=cfg.LLM_N_GPU_LAYERS,
+            verbose=False,
+            use_mlock=False,   # ne pas verrouiller la RAM (important avec 512 MB)
+            use_mmap=True,     # mapping mémoire pour réduire l'empreinte
+        )
+        log.info("LLM local prêt.")
+        self._mode = "local"
+
+    def _init_api(self):
+        log.info("Mode LLM API : %s → %s", cfg.LLM_API_BASE, cfg.LLM_API_MODEL)
+        try:
+            from openai import OpenAI
+            self._client = OpenAI(
+                base_url=cfg.LLM_API_BASE,
+                api_key=cfg.LLM_API_KEY,
+            )
+        except ImportError:
+            raise ImportError("Installez openai : pip install openai")
+        self._mode = "api"
+
+    def generate(self, user_text: str) -> str:
+        """Génère une réponse à partir du texte utilisateur."""
+        # Construction des messages (historique court pour économiser la RAM)
+        messages = [{"role": "system", "content": cfg.SYSTEM_PROMPT}]
+        # On garde seulement les 4 derniers échanges
+        messages.extend(self._history[-8:])
+        messages.append({"role": "user", "content": user_text})
+
+        if self._mode == "local":
+            response = self._generate_local(messages)
+        else:
+            response = self._generate_api(messages)
+
+        # Mise à jour de l'historique
+        self._history.append({"role": "user", "content": user_text})
+        self._history.append({"role": "assistant", "content": response})
+
+        log.info("🤖 Réponse : « %s »", response)
+        return response
+
+    def _generate_local(self, messages: list) -> str:
+        output = self._llm.create_chat_completion(
+            messages=messages,
+            max_tokens=cfg.LLM_MAX_TOKENS,
+            temperature=cfg.LLM_TEMPERATURE,
+            stop=["<|im_end|>", "</s>", "\n\n"],
+        )
+        return output["choices"][0]["message"]["content"].strip()
+
+    def _generate_api(self, messages: list) -> str:
+        resp = self._client.chat.completions.create(
+            model=cfg.LLM_API_MODEL,
+            messages=messages,
+            max_tokens=cfg.LLM_MAX_TOKENS,
+            temperature=cfg.LLM_TEMPERATURE,
+        )
+        return resp.choices[0].message.content.strip()
+
+    def reset_history(self):
+        self._history.clear()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5) TTS — Piper ou pyttsx3
+# ─────────────────────────────────────────────────────────────────────────────
+class TTSEngine:
+    """Synthèse vocale : Piper (qualité) ou pyttsx3 (fallback)."""
+
+    def __init__(self):
+        if cfg.TTS_MODE == "piper":
+            self._init_piper()
+        else:
+            self._init_pyttsx3()
+
+    def _init_piper(self):
+        if not Path(cfg.PIPER_BINARY).exists():
+            log.warning(
+                "Binaire Piper introuvable (%s), bascule sur pyttsx3.", cfg.PIPER_BINARY
+            )
+            cfg.TTS_MODE = "pyttsx3"
+            self._init_pyttsx3()
+            return
+        if not Path(cfg.PIPER_MODEL).exists():
+            log.warning(
+                "Modèle Piper introuvable (%s), bascule sur pyttsx3.", cfg.PIPER_MODEL
+            )
+            cfg.TTS_MODE = "pyttsx3"
+            self._init_pyttsx3()
+            return
+        log.info("TTS Piper initialisé : %s", cfg.PIPER_MODEL)
+        self._mode = "piper"
+
+    def _init_pyttsx3(self):
+        import pyttsx3
+        self._engine = pyttsx3.init()
+        self._engine.setProperty("rate", cfg.PYTTSX3_RATE)
+        # Sélection d'une voix française si disponible
+        voices = self._engine.getProperty("voices")
+        for v in voices:
+            if "fr" in v.id.lower() or "french" in v.name.lower():
+                self._engine.setProperty("voice", v.id)
+                log.info("Voix pyttsx3 sélectionnée : %s", v.name)
+                break
+        log.info("TTS pyttsx3 initialisé.")
+        self._mode = "pyttsx3"
+
+    def speak(self, text: str):
+        """Énonce le texte donné."""
+        log.info("🔊 Synthèse : « %s »", text)
+        if self._mode == "piper":
+            self._speak_piper(text)
+        else:
+            self._speak_pyttsx3(text)
+
+    def _speak_piper(self, text: str):
+        import subprocess
+        import shlex
+        # Piper lit sur stdin, joue le WAV via aplay
+        cmd_piper = (
+            f'echo {shlex.quote(text)} | '
+            f'{shlex.quote(cfg.PIPER_BINARY)} '
+            f'--model {shlex.quote(cfg.PIPER_MODEL)} '
+            f'--output_raw | '
+            f'aplay -r 22050 -f S16_LE -t raw -'
+        )
+        try:
+            subprocess.run(cmd_piper, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            log.error("Erreur Piper : %s — bascule pyttsx3", e)
+            self._speak_pyttsx3(text)
+
+    def _speak_pyttsx3(self, text: str):
+        self._engine.say(text)
+        self._engine.runAndWait()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Boucle principale de l'assistant
+# ─────────────────────────────────────────────────────────────────────────────
+class VoiceAssistant:
+    """Orchestre tous les composants dans une boucle événementielle."""
+
+    def __init__(self):
+        log.info("═══ Démarrage de l'assistant vocal Edge AI ═══")
+        gc.collect()  # libère la mémoire avant de charger les modèles
+
+        self.audio = AudioManager()
+        self.tts = TTSEngine()          # chargé en premier (léger)
+        self.stt = WhisperTranscriber() # ~60-80 MB
+        self.llm = LLMEngine()          # ~150-300 MB selon le modèle
+        self.wake = WakeWordDetector(self.audio)  # ~5 MB
+
+        gc.collect()
+        self._print_memory_usage()
+        log.info("✅ Tous les composants sont prêts.")
+
+    def _print_memory_usage(self):
+        try:
+            import psutil
+            proc = psutil.Process(os.getpid())
+            mb = proc.memory_info().rss / 1024 / 1024
+            log.info("📊 Utilisation RAM : %.0f MB", mb)
+        except ImportError:
+            pass  # psutil optionnel
+
+    def run(self):
+        """Boucle principale : écoute → transcription → LLM → TTS."""
+        self.tts.speak("Assistant prêt. Dites Hé Google pour commencer.")
+        try:
+            while True:
+                # ── Attente du mot d'éveil ──────────────────────────────
+                self.wake.listen_for_wake_word()
+
+                # ── Signal sonore de confirmation ───────────────────────
+                self.tts.speak("Oui ?")
+
+                # ── Enregistrement de la requête ────────────────────────
+                wav_path = record_utterance(self.audio)
+                if not wav_path:
+                    log.warning("Aucun audio capturé, retour en attente.")
+                    continue
+
+                # ── Transcription ───────────────────────────────────────
+                try:
+                    text = self.stt.transcribe(wav_path)
+                finally:
+                    os.unlink(wav_path)  # supprime le fichier temporaire
+
+                if not text:
+                    self.tts.speak("Je n'ai pas compris, pouvez-vous répéter ?")
+                    continue
+
+                # ── Commandes intégrées ─────────────────────────────────
+                if self._handle_builtin_command(text):
+                    continue
+
+                # ── Génération de la réponse LLM ────────────────────────
+                try:
+                    self.tts.speak("Un instant…")
+                    response = self.llm.generate(text)
+                except Exception as e:
+                    log.error("Erreur LLM : %s", e)
+                    response = "Désolé, je n'ai pas pu générer de réponse."
+
+                # ── Synthèse vocale ─────────────────────────────────────
+                self.tts.speak(response)
+                gc.collect()  # libère la mémoire après chaque cycle
+
+        except KeyboardInterrupt:
+            log.info("Arrêt demandé par l'utilisateur.")
+        finally:
+            self._cleanup()
+
+    def _handle_builtin_command(self, text: str) -> bool:
+        """Gère les commandes intégrées sans passer par le LLM."""
+        t = text.lower().strip()
+        if any(w in t for w in ("réinitialise", "reset", "oublie tout")):
+            self.llm.reset_history()
+            self.tts.speak("Historique effacé.")
+            return True
+        if any(w in t for w in ("quelle heure", "il est quelle heure")):
+            h = time.strftime("%H heures %M")
+            self.tts.speak(f"Il est {h}.")
+            return True
+        if any(w in t for w in ("au revoir", "stop", "quitte", "arrête")):
+            self.tts.speak("Au revoir !")
+            raise KeyboardInterrupt
+        return False
+
+    def _cleanup(self):
+        log.info("Nettoyage des ressources…")
+        try:
+            self.wake.delete()
+        except Exception:
+            pass
+        try:
+            self.audio.terminate()
+        except Exception:
+            pass
+        log.info("Assistant arrêté proprement.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Point d'entrée
+# ─────────────────────────────────────────────────────────────────────────────
+def parse_args():
+    parser = argparse.ArgumentParser(description="Assistant vocal Edge AI – Raspberry Pi Zero 2W")
+    parser.add_argument("--llm-mode", choices=["local", "api"], help="Mode LLM (local ou api)")
+    parser.add_argument("--tts-mode", choices=["piper", "pyttsx3"], help="Moteur TTS")
+    parser.add_argument("--model", help="Chemin vers le modèle GGUF (mode local)")
+    parser.add_argument("--debug", action="store_true", help="Active les logs DEBUG")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    if args.llm_mode:
+        cfg.LLM_MODE = args.llm_mode
+    if args.tts_mode:
+        cfg.TTS_MODE = args.tts_mode
+    if args.model:
+        cfg.LLM_MODEL_PATH = args.model
+
+    assistant = VoiceAssistant()
+    assistant.run()
