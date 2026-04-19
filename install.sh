@@ -80,8 +80,24 @@ if [ ! -f "$PIPER_DIR/${PIPER_VOICE}.onnx" ]; then
         -O "$PIPER_DIR/${PIPER_VOICE}.onnx.json"
 fi
 
-# ── 7) Service systemd ─────────────────────────────────────────────────────
-echo "[7/7] Création du service systemd…"
+# ── 7) Configuration Somfy TaHoma (Optionnel) ──────────────────────────────
+echo ""
+echo "[7/8] Configuration Somfy TaHoma (Optionnel)…"
+SOMFY_ENV=""
+read -p "Voulez-vous configurer l'intégration locale Somfy TaHoma ? (o/N) : " config_somfy
+if [[ "$config_somfy" =~ ^[oO]$ ]]; then
+    read -p "Entrez le PIN de la box (ex: 2001-1234-5678) : " somfy_pin
+    read -p "Entrez le Token Développeur : " somfy_token
+    read -p "Entrez l'IP de la box (laisser vide pour la détection auto) : " somfy_ip
+    
+    SOMFY_ENV="Environment=\"SOMFY_PIN=$somfy_pin\"\nEnvironment=\"SOMFY_TOKEN=$somfy_token\""
+    if [ ! -z "$somfy_ip" ]; then
+        SOMFY_ENV="$SOMFY_ENV\nEnvironment=\"SOMFY_IP=$somfy_ip\""
+    fi
+fi
+
+# ── 8) Service systemd ─────────────────────────────────────────────────────
+echo "[8/8] Création du service systemd…"
 SERVICE_FILE="/etc/systemd/system/voice-assistant.service"
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
@@ -94,6 +110,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$SCRIPT_DIR
 Environment="PYTHONUNBUFFERED=1"
+$(echo -e $SOMFY_ENV)
 ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/assistant.py
 Restart=on-failure
 RestartSec=5
