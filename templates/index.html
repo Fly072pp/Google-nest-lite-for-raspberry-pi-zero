@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuration Edge AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, var(--bg-color));
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 50px;
+            padding-bottom: 50px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-weight: 700;
+            margin: 0;
+            font-size: 2.5rem;
+            background: -webkit-linear-gradient(45deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .hint {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-container {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            margin-top: 40px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Notifications */
+        #notification {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            background: var(--success);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        #notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header" style="position: relative;">
+            <a href="{{ url_for('logout') }}" style="position: absolute; right: 0; top: 0; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--glass-border); padding: 5px 10px; border-radius: 5px; background: rgba(255,255,255,0.05); transition: all 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">Déconnexion</a>
+            <h1>Edge AI Settings</h1>
+            <p>Panneau de configuration local</p>
+        </div>
+
+        <form id="configForm">
+            <!-- Audio & Wake Word -->
+            <div class="card">
+                <h2>🎤 Audio & Déclencheur</h2>
+                
+                <div class="form-group">
+                    <label>Mot d'éveil (Wake Word)</label>
+                    <span class="hint">Modèles supportés : hey_google, alexa, hey_jarvis...</span>
+                    <input type="text" id="WAKE_WORD" name="WAKE_WORD" placeholder="hey_google">
+                </div>
+
+                <div class="form-group">
+                    <label>Sensibilité du déclencheur</label>
+                    <span class="hint">De 0.1 à 1.0. Plus c'est haut, moins il y a de faux positifs.</span>
+                    <input type="number" id="WAKE_WORD_THRESHOLD" name="WAKE_WORD_THRESHOLD" step="0.05" min="0" max="1" placeholder="0.5">
+                </div>
+
+                <div class="form-group">
+                    <label>Sensibilité au silence</label>
+                    <span class="hint">Seuil RMS de détection de fin de phrase (ex: 0.015)</span>
+                    <input type="number" id="RECORD_SILENCE_THRESHOLD" name="RECORD_SILENCE_THRESHOLD" step="0.005" placeholder="0.015">
+                </div>
+            </div>
+
+            <!-- IA / LLM -->
+            <div class="card">
+                <h2>🧠 Intelligence Artificielle</h2>
+                
+                <div class="form-group">
+                    <label>Moteur Whisper (STT)</label>
+                    <select id="WHISPER_MODEL" name="WHISPER_MODEL">
+                        <option value="tiny">Tiny (Plus rapide, ~60MB RAM)</option>
+                        <option value="base">Base (Plus précis, ~140MB RAM)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Architecture du Cerveau (LLM)</label>
+                    <span class="hint">Local (llama-cpp sur la carte) ou distant (Ollama sur le réseau)</span>
+                    <select id="LLM_MODE" name="LLM_MODE">
+                        <option value="local">Local (llama-cpp)</option>
+                        <option value="api">Réseau distant (API / Ollama)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Longueur de réponse max (Tokens)</label>
+                    <input type="number" id="LLM_MAX_TOKENS" name="LLM_MAX_TOKENS" placeholder="150">
+                </div>
+            </div>
+
+            <!-- Somfy -->
+            <div class="card">
+                <h2>🏠 Domotique (Somfy TaHoma)</h2>
+                
+                <div class="form-group">
+                    <label>PIN de la passerelle</label>
+                    <span class="hint">Format: 2001-1234-5678</span>
+                    <input type="text" id="SOMFY_PIN" name="SOMFY_PIN" placeholder="xxxx-xxxx-xxxx">
+                </div>
+
+                <div class="form-group">
+                    <label>Token Développeur</label>
+                    <span class="hint">Généré depuis l'interface Somfy</span>
+                    <input type="text" id="SOMFY_TOKEN" name="SOMFY_TOKEN" placeholder="eyJ...xyz">
+                </div>
+
+                <div class="form-group">
+                    <label>Adresse IP (Optionnel)</label>
+                    <span class="hint">Si `gateway-<pin>.local` ne fonctionne pas, entrez l'IP de la box.</span>
+                    <input type="text" id="SOMFY_IP" name="SOMFY_IP" placeholder="192.168.1.50">
+                </div>
+            </div>
+
+            <div class="btn-container">
+                <button type="button" class="btn-danger" id="btnRestart">Redémarrer l'assistant</button>
+                <button type="submit" class="btn-primary">Sauvegarder</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="notification">✅ Configuration sauvegardée</div>
+
+    <script>
+        // Load data on start
+        fetch('/api/config')
+            .then(res => res.json())
+            .then(data => {
+                for (const key in data) {
+                    const el = document.getElementById(key);
+                    if (el) {
+                        el.value = data[key];
+                    }
+                }
+            })
+            .catch(err => console.error("Could not load config", err));
+
+        // Save
+        document.getElementById('configForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                // Convert numbers dynamically if it looks like a number
+                if (value && !isNaN(value) && !key.includes('PIN')) {
+                    // Check if it should be float or int
+                    data[key] = value.includes('.') ? parseFloat(value) : parseInt(value);
+                } else {
+                    data[key] = value;
+                }
+            }
+
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(() => {
+                const notif = document.getElementById('notification');
+                notif.classList.add('show');
+                setTimeout(() => notif.classList.remove('show'), 3000);
+            });
+        });
+
+        // Restart
+        document.getElementById('btnRestart').addEventListener('click', function() {
+            if(confirm("L'assistant va redémarrer. Êtes-vous sûr ?")) {
+                fetch('/api/restart', { method: 'POST' })
+                .then(() => {
+                    alert("Requête de redémarrage envoyée. La page peut être indisponible pendant quelques secondes.");
+                    setTimeout(() => window.location.reload(), 5000);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
