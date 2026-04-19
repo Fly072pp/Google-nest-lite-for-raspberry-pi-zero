@@ -65,6 +65,14 @@ L'installation est entièrement automatique. **Aucune clé API à configurer.**
 
 ## 🎛️ Utilisation
 
+### 🌐 Panneau d'Administration Web (Nouveau !)
+L'assistant intègre une magnifique interface de configuration web. Lancez l'assistant puis rendez-vous sur :
+**[http://<IP_DU_RASPBERRY>:6524](http://<IP_DU_RASPBERRY>:6524)**
+
+> *Lors de votre toute première connexion, il vous sera demandé de créer un nom d'utilisateur et un mot de passe pour sécuriser l'accès à ce panneau. Personne ne pourra reconfigurer votre maison sans ces identifiants !*
+
+Vous pourrez y configurer le mot d'éveil, l'IA, et vos identifiants Somfy TaHoma en quelques clics !
+
 ### Manuelle
 ```bash
 source .venv/bin/activate
@@ -96,6 +104,8 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `quelle heure est-il ?` | Donne l'heure sans appeler le LLM |
 | `réinitialise` / `oublie tout` | Efface l'historique conversation |
 | `au revoir` / `stop` / `arrête` | Éteint l'assistant proprement |
+| `ouvre / ferme les volets [pièce]` | Contrôle les volets via Somfy TaHoma local |
+| `lance le scénario [nom]` | Exécute un scénario Somfy local |
 
 ## 🔧 Configuration avancée (`assistant.py` → classe `Config`)
 
@@ -108,6 +118,13 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `LLM_MODE` | `"local"` | `"local"` ou `"api"` |
 | `LLM_MAX_TOKENS` | `150` | Longueur max de la réponse |
 | `RECORD_SILENCE_THRESHOLD` | `0.015` | Sensibilité détection silence |
+
+### 🏠 Intégration Somfy TaHoma (Mode Développeur Local)
+Pour contrôler vos équipements Somfy en 100% local sans cloud, activez le **Mode Développeur** depuis l'application TaHoma pour obtenir un token.
+Définissez ces variables d'environnement (ou éditez la classe `Config` dans `assistant.py`) :
+- `SOMFY_PIN` : Le code PIN de votre box (ex: `2001-1234-5678`)
+- `SOMFY_TOKEN` : Le jeton Bearer généré
+- `SOMFY_IP` : *(Optionnel)* L'adresse IP de votre box si `gateway-<pin>.local` ne fonctionne pas sur votre réseau.
 
 ## 🌐 Mode API (alternative au LLM local)
 
