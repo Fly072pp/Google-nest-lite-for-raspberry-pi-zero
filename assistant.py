@@ -22,6 +22,11 @@ from typing import Optional, Generator
 
 import numpy as np
 import pyaudio
+import requests
+import urllib3
+
+# Désactiver les avertissements concernant le certificat SSL auto-signé de la passerelle locale
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Logging
@@ -98,8 +103,106 @@ class Config:
     # pyttsx3 – taux de parole (mots/min)
     PYTTSX3_RATE: int = 175
 
+    # ── Somfy TaHoma (Mode Développeur Local) ──────────────────────────────
+    SOMFY_PIN: str = os.getenv("SOMFY_PIN", "")        # ex: "2001-1234-5678"
+    SOMFY_IP: str = os.getenv("SOMFY_IP", "")          # ex: "192.168.1.50" (ou vide pour auto-résolution local)
+    SOMFY_TOKEN: str = os.getenv("SOMFY_TOKEN", "")    # Token généré dans l'app
 
 cfg = Config()
+
+import json
+if os.path.exists("config.json"):
+    try:
+        with open("config.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+            for k, v in data.items():
+                if hasattr(cfg, k) and v != "":
+                    # Types supportés: float, int, str
+                    try:
+                        if isinstance(getattr(cfg, k), float): v = float(v)
+                        elif isinstance(getattr(cfg, k), int): v = int(v)
+                        else: v = str(v)
+                        setattr(cfg, k, v)
+                    except ValueError:
+                        pass
+    except Exception as e:
+        log.error(f"Erreur de chargement config.json: {e}")
+
+try:
+    import web_admin
+    threading.Thread(target=web_admin.start_server, daemon=True).start()
+    log.info("🌐 Panneau d'administration web lancé sur le port 6524")
+except Exception as e:
+    log.warning(f"Impossible de lancer le panneau web: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Somfy TaHoma Local API
+# ─────────────────────────────────────────────────────────────────────────────
+class TaHomaLocalAPI:
+    def __init__(self, pin: str, ip: str, token: str):
+        self.pin = pin
+        self.ip = ip
+        self.token = token
+        host = self.ip if self.ip else f"gateway-{self.pin}.local"
+        self.base_url = f"https://{host}:8443/enduser-mobile-web/1/enduserAPI"
+        self.headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+
+    def _request(self, method, endpoint, json=None):
+        url = f"{self.base_url}{endpoint}"
+        try:
+            response = requests.request(method, url, headers=self.headers, json=json, verify=False, timeout=5)
+            response.raise_for_status()
+            return response.json() if response.content else None
+        except requests.exceptions.RequestException as e:
+            log.error(f"Erreur API Somfy : {e}")
+            return None
+
+    def get_setup(self):
+        return self._request("GET", "/setup")
+
+    def get_devices(self):
+        return self._request("GET", "/setup/devices")
+
+    def get_action_groups(self):
+        setup = self.get_setup()
+        if setup and "actionGroups" in setup:
+            return setup["actionGroups"]
+        return self._request("GET", "/setup/actionGroups")
+        
+    def execute_action(self, label: str, device_urls: list, command_name: str):
+        if not device_urls:
+            log.warning("Aucun deviceURL fourni pour l'action.")
+            return False
+        actions = [{"deviceURL": url, "commands": [{"name": command_name, "parameters": []}]} for url in device_urls]
+        log.info(f"Exécution Somfy : {label} sur {len(device_urls)} périphérique(s), commande={command_name}")
+        return self._request("POST", "/exec/apply", json={"label": label, "actions": actions}) is not None
+
+    def control_shutters(self, action: str, room: str = None):
+        devices = self.get_devices()
+        if not devices:
+            log.error("Impossible de récupérer les volets (devices).")
+            return False
+        target_urls = []
+        for d in devices:
+            if d.get("uiClass", "") in ["RollerShutter", "Screen", "ExteriorVenetianBlind", "Awning", "SwingingShutter"]:
+                if not room or room.lower() in d.get("label", "").lower():
+                    target_urls.append(d["deviceURL"])
+        if not target_urls:
+            log.info(f"Aucun volet trouvé pour la pièce '{room}'" if room else "Aucun volet trouvé sur l'installation.")
+            return False
+        return self.execute_action(f"{action.capitalize()} volets" + (f" {room}" if room else ""), target_urls, action)
+
+    def execute_scenario(self, scenario_keyword: str):
+        groups = self.get_action_groups()
+        if not groups:
+            return False
+        for group in groups:
+            if scenario_keyword.lower() in group.get("label", "").lower():
+                log.info(f"Lancement du scénario : {group.get('label')}")
+                return self._request("POST", "/exec/apply", json=group)
+        log.info(f"Scénario contenant '{scenario_keyword}' introuvable.")
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -460,6 +563,16 @@ class VoiceAssistant:
         self.llm = LLMEngine()          # ~150-300 MB selon le modèle
         self.wake = WakeWordDetector(self.audio)  # ~5 MB
 
+        if getattr(cfg, "SOMFY_PIN", "") and getattr(cfg, "SOMFY_TOKEN", ""):
+            try:
+                self.somfy = TaHomaLocalAPI(cfg.SOMFY_PIN, cfg.SOMFY_IP, cfg.SOMFY_TOKEN)
+                log.info("🏠 Connecteur Somfy TaHoma initialisé.")
+            except Exception as e:
+                self.somfy = None
+                log.warning(f"Erreur d'initialisation Somfy: {e}")
+        else:
+            self.somfy = None
+
         gc.collect()
         self._print_memory_usage()
         log.info("✅ Tous les composants sont prêts.")
@@ -535,6 +648,44 @@ class VoiceAssistant:
         if any(w in t for w in ("au revoir", "stop", "quitte", "arrête")):
             self.tts.speak("Au revoir !")
             raise KeyboardInterrupt
+
+        # ── Intégration Somfy TaHoma ────────────────────────────────────
+        if hasattr(self, "somfy") and self.somfy:
+            if "volet" in t or "volets" in t:
+                action = None
+                if any(w in t for w in ("ouvre", "monte")): action = "open"
+                elif any(w in t for w in ("ferme", "descend")): action = "close"
+                elif "stop" in t or "arrête" in t: action = "stop"
+
+                if action:
+                    room = None
+                    for r in ["salon", "cuisine", "chambre", "bureau", "salle de bain", "garage", "véranda"]:
+                        if r in t:
+                            room = r
+                            break
+                    
+                    msg = "J'ouvre les volets" if action == "open" else ("Je ferme les volets" if action == "close" else "J'arrête les volets")
+                    if room: msg += f" pièce {room}"
+                    self.tts.speak(msg)
+                    
+                    success = self.somfy.control_shutters(action, room)
+                    if not success:
+                        self.tts.speak("Il y a eu un problème avec les volets.")
+                    return True
+                    
+            if "scénario" in t or "scenario" in t:
+                words = t.split()
+                try:
+                    idx = words.index("scénario") if "scénario" in words else words.index("scenario")
+                    if idx + 1 < len(words):
+                        keyword = words[idx + 1]
+                        self.tts.speak(f"Lancement du scénario {keyword}.")
+                        success = self.somfy.execute_scenario(keyword)
+                        if not success:
+                            self.tts.speak(f"Scénario {keyword} introuvable.")
+                        return True
+                except ValueError:
+                    pass
         return False
 
     def _cleanup(self):
