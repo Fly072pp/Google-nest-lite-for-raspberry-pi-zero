@@ -1,13 +1,23 @@
 # 🎙️ Assistant Vocal Edge AI — Raspberry Pi Zero 2W
 
-Assistant vocal autonome fonctionnant entièrement en local. Aucune dépendance cloud.
+Assistant vocal autonome fonctionnant entièrement en local. **100% gratuit, aucune clé API, aucun compte requis.**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Micro  →  Wake Word  →  STT  →  LLM  →  TTS  →  HP   │
-│            Porcupine   Whisper  llama   Piper            │
+│  Micro  →  Wake Word   →  STT  →  LLM  →  TTS  →  HP   │
+│          openWakeWord   Whisper  llama   Piper            │
 └─────────────────────────────────────────────────────────┘
 ```
+
+## 📦 Stack technique
+
+| Composant | Librairie | Licence |
+|-----------|-----------|---------|
+| Wake word | **openWakeWord** | Apache 2.0 — gratuit |
+| STT | **faster-whisper** (tiny, int8) | MIT — gratuit |
+| LLM | **llama-cpp-python** + SmolLM2 135M Q8 | Apache 2.0 — gratuit |
+| TTS | **piper-tts** / pyttsx3 | MIT — gratuit |
+| Audio | **PyAudio** | MIT — gratuit |
 
 ## 📋 Prérequis matériels
 
@@ -26,40 +36,32 @@ Assistant vocal autonome fonctionnant entièrement en local. Aucune dépendance 
 | OS + Kernel | ~80 MB |
 | Python + runtime | ~30 MB |
 | Whisper tiny (int8) | ~60 MB |
-| Porcupine wake word | ~5 MB |
-| Qwen 2.5 0.5B Q4_K_M | ~310 MB |
+| openWakeWord | ~20 MB |
+| SmolLM2 135M Q8 | ~150 MB |
 | Buffers audio | ~5 MB |
-| **Total estimé** | **~490 MB** |
+| **Total estimé** | **~345 MB** ✅ |
 
-> ⚠️ Activez le **swap** (au moins 256 MB) comme filet de sécurité :
+> **170 MB de marge libre** — très confortable sur 512 MB. Swap optionnel mais recommandé (128 MB suffisent) :
 > ```bash
 > sudo dphys-swapfile swapoff
-> sudo nano /etc/dphys-swapfile  # CONF_SWAPSIZE=256
+> sudo nano /etc/dphys-swapfile  # CONF_SWAPSIZE=128
 > sudo dphys-swapfile setup && sudo dphys-swapfile swapon
 > ```
 
 ## 🚀 Installation rapide
 
 ```bash
-# 1. Clonez / copiez les fichiers sur votre Pi
+# 1. Copiez les fichiers sur votre Pi
 git clone <votre-repo> ~/assistant && cd ~/assistant
 
 # 2. Rendez le script exécutable
 chmod +x install.sh
 
-# 3. Lancez l'installation (nécessite ~15 min)
+# 3. Lancez l'installation (~15 min, télécharge les modèles)
 ./install.sh
 ```
 
-## 🔑 Configuration de la clé Picovoice
-
-1. Créez un compte gratuit sur [console.picovoice.ai](https://console.picovoice.ai/)
-2. Copiez votre **Access Key**
-3. Exportez-la avant de lancer l'assistant :
-   ```bash
-   export PICOVOICE_ACCESS_KEY="votre_cle_ici"
-   ```
-   Ou éditez la variable dans `/etc/systemd/system/voice-assistant.service`.
+L'installation est entièrement automatique. **Aucune clé API à configurer.**
 
 ## 🎛️ Utilisation
 
@@ -67,7 +69,7 @@ chmod +x install.sh
 ```bash
 source .venv/bin/activate
 
-# Mode local (llama-cpp)
+# Lancement normal
 python assistant.py
 
 # Mode API (Ollama sur un autre PC du réseau)
@@ -99,35 +101,36 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 
 | Paramètre | Défaut | Description |
 |-----------|--------|-------------|
-| `WHISPER_MODEL` | `"tiny"` | `"tiny"` (~75 MB) ou `"base"` (~145 MB) |
+| `WAKE_WORD` | `"hey_google"` | Mot d'éveil (`"hey_google"`, `"alexa"`, `"hey_jarvis"`…) |
+| `WAKE_WORD_THRESHOLD` | `0.5` | Sensibilité [0–1] (plus élevé = moins de faux positifs) |
+| `WHISPER_MODEL` | `"tiny"` | `"tiny"` (~60 MB) ou `"base"` (~145 MB) |
 | `WHISPER_LANGUAGE` | `"fr"` | `None` = détection automatique |
 | `LLM_MODE` | `"local"` | `"local"` ou `"api"` |
 | `LLM_MAX_TOKENS` | `150` | Longueur max de la réponse |
 | `RECORD_SILENCE_THRESHOLD` | `0.015` | Sensibilité détection silence |
-| `WAKE_WORD_SENSITIVITY` | `0.5` | Sensibilité mot d'éveil (0–1) |
 
 ## 🌐 Mode API (alternative au LLM local)
 
-Si `llama-cpp` est trop lent, utilisez un PC du réseau avec Ollama :
+Si le LLM local est trop lent, utilisez un PC du réseau avec Ollama :
 
 ```bash
 # Sur le PC hôte :
 ollama serve
-ollama pull qwen2.5:0.5b
+ollama pull smollm2:135m
 
-# Sur le Pi, lancez :
+# Sur le Pi :
 LLM_API_BASE="http://192.168.1.X:11434/v1" \
-LLM_API_MODEL="qwen2.5:0.5b" \
+LLM_API_MODEL="smollm2:135m" \
 python assistant.py --llm-mode api
 ```
 
 ## 📦 Modèles GGUF recommandés
 
-| Modèle | Taille | Qualité | URL |
-|--------|--------|---------|-----|
-| Qwen 2.5 0.5B Q4_K_M | ~350 MB | ⭐⭐⭐ | [HuggingFace](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) |
-| TinyLlama 1.1B Q2_K | ~420 MB | ⭐⭐ | [HuggingFace](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF) |
-| SmolLM2 135M Q8 | ~150 MB | ⭐ | [HuggingFace](https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF) |
+| Modèle | Taille | RAM | Qualité | URL |
+|--------|--------|-----|---------|-----|
+| **SmolLM2 135M Q8** ✅ | ~150 MB | ~150 MB | ⭐⭐ | [HuggingFace](https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF) |
+| Qwen 2.5 0.5B Q4_K_M | ~350 MB | ~310 MB | ⭐⭐⭐ | [HuggingFace](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF) |
+| TinyLlama 1.1B Q2_K | ~420 MB | ~380 MB | ⭐⭐ | [HuggingFace](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF) |
 
 ## 🐛 Dépannage
 
@@ -137,14 +140,13 @@ arecord -l                          # liste les périphériques
 arecord -D hw:1,0 -r 16000 -f S16_LE test.wav && aplay test.wav
 ```
 
-**Erreur Porcupine "Invalid AccessKey" :**
-Vérifiez que `PICOVOICE_ACCESS_KEY` est correctement défini.
+**openWakeWord ne détecte pas le mot d'éveil :**
+Baissez le seuil dans `assistant.py` : `WAKE_WORD_THRESHOLD = 0.3`
 
 **LLM trop lent (>10s) :**
-Passez en mode API ou utilisez un modèle plus petit (SmolLM2 135M).
+Passez en mode API (`--llm-mode api`) ou réduisez `LLM_MAX_TOKENS`.
 
 **Erreur PyAudio `ALSA lib` :**
-Ajoutez votre utilisateur au groupe `audio` :
 ```bash
 sudo usermod -aG audio $USER && newgrp audio
 ```
