@@ -243,6 +243,37 @@
                 </div>
             </div>
 
+            <!-- Modules -->
+            <div class="card">
+                <h2>🧩 Modules optionnels</h2>
+                
+                <div class="form-group">
+                    <label>Radio Internet</label>
+                    <select id="ENABLE_RADIO" name="ENABLE_RADIO">
+                        <option value="true">Activé</option>
+                        <option value="false">Désactivé</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Minuteurs & Alarmes</label>
+                    <select id="ENABLE_TIMERS" name="ENABLE_TIMERS">
+                        <option value="true">Activé</option>
+                        <option value="false">Désactivé</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Radio -->
+            <div class="card">
+                <h2>📻 Stations de Radio</h2>
+                <div class="form-group">
+                    <label>Configuration des stations (JSON)</label>
+                    <span class="hint">Format: {"Nom": "URL", ...}</span>
+                    <textarea id="RADIO_STATIONS" name="RADIO_STATIONS" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
+                </div>
+            </div>
+
             <!-- Somfy -->
             <div class="card">
                 <h2>🏠 Domotique (Somfy TaHoma)</h2>
@@ -295,8 +326,12 @@
             const formData = new FormData(this);
             const data = {};
             for (let [key, value] of formData.entries()) {
+                // Special handling for boolean strings from selects
+                if (value === "true") value = true;
+                if (value === "false") value = false;
+
                 // Convert numbers dynamically if it looks like a number
-                if (value && !isNaN(value) && !key.includes('PIN')) {
+                if (value !== true && value !== false && value && !isNaN(value) && !key.includes('PIN')) {
                     // Check if it should be float or int
                     data[key] = value.includes('.') ? parseFloat(value) : parseInt(value);
                 } else {

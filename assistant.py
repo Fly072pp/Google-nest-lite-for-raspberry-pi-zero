@@ -24,6 +24,10 @@ import numpy as np
 import pyaudio
 import requests
 import urllib3
+import subprocess
+import re
+import datetime
+import json
 
 # Désactiver les avertissements concernant le certificat SSL auto-signé de la passerelle locale
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -107,6 +111,11 @@ class Config:
     SOMFY_PIN: str = os.getenv("SOMFY_PIN", "")        # ex: "2001-1234-5678"
     SOMFY_IP: str = os.getenv("SOMFY_IP", "")          # ex: "192.168.1.50" (ou vide pour auto-résolution local)
     SOMFY_TOKEN: str = os.getenv("SOMFY_TOKEN", "")    # Token généré dans l'app
+
+    # ── Radio & Utilitaires ──────────────────────────────────────────────
+    ENABLE_RADIO: bool = False
+    ENABLE_TIMERS: bool = True
+    RADIO_STATIONS: str = '{"France Info": "https://stream.radiofrance.fr/franceinfo/franceinfo.m3u8", "FIP": "https://stream.radiofrance.fr/fip/fip.m3u8"}'
 
 cfg = Config()
 
@@ -203,6 +212,86 @@ class TaHomaLocalAPI:
                 return self._request("POST", "/exec/apply", json=group)
         log.info(f"Scénario contenant '{scenario_keyword}' introuvable.")
         return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gestion des Radios (VLC / cvlc)
+# ─────────────────────────────────────────────────────────────────────────────
+class RadioManager:
+    def __init__(self):
+        self._process = None
+
+    def play(self, url: str):
+        self.stop()
+        log.info(f"📻 Lancement radio : {url}")
+        try:
+            # cvlc est la version headless de VLC
+            self._process = subprocess.Popen(
+                ["cvlc", "--no-video", url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return True
+        except Exception as e:
+            log.error(f"Erreur lors du lancement de la radio : {e}")
+            return False
+
+    def stop(self):
+        if self._process:
+            log.info("🛑 Arrêt de la radio.")
+            self._process.terminate()
+            self._process = None
+            return True
+        return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gestion des Minuteurs et Alarmes
+# ─────────────────────────────────────────────────────────────────────────────
+class TimerManager:
+    def __init__(self, tts_callback):
+        self.tts = tts_callback
+        self.timers = []  # List of dicts: {"time": datetime, "label": str, "type": "timer"|"alarm"}
+        self._running = True
+        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread.start()
+
+    def add_timer(self, seconds: int, label: str = "Minuteur"):
+        target_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+        self.timers.append({"time": target_time, "label": label, "type": "timer"})
+        log.info(f"⏲️ Minuteur réglé pour dans {seconds}s ({target_time.strftime('%H:%M:%S')})")
+
+    def add_alarm(self, hour: int, minute: int, label: str = "Alarme"):
+        now = datetime.datetime.now()
+        target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target_time < now:
+            target_time += datetime.timedelta(days=1)
+        self.timers.append({"time": target_time, "label": label, "type": "alarm"})
+        log.info(f"⏰ Alarme réglée pour {target_time.strftime('%H:%M:%S')}")
+
+    def _worker(self):
+        while self._running:
+            now = datetime.datetime.now()
+            expired = [t for t in self.timers if t["time"] <= now]
+            for t in expired:
+                msg = f"C'est l'heure ! Votre {t['label']} est terminé."
+                log.info(f"🔔 {msg}")
+                self._play_alarm_sound()
+                self.tts.speak(msg)
+                self.timers.remove(t)
+            time.sleep(1)
+
+    def _play_alarm_sound(self):
+        # Utilise aplay pour jouer un bip système ou un son
+        try:
+            # Génère un bip simple avec sox si disponible, sinon joue un silence pour tester
+            subprocess.run(["speaker-test", "-t", "sine", "-f", "1000", "-l", "1", "-p", "100"], 
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+    def stop(self):
+        self._running = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -588,6 +677,9 @@ class VoiceAssistant:
 
     def run(self):
         """Boucle principale : écoute → transcription → LLM → TTS."""
+        self.radio = RadioManager()
+        self.timers = TimerManager(self.tts)
+        
         self.tts.speak("Assistant prêt. Dites Hé Google pour commencer.")
         try:
             while True:
@@ -686,6 +778,46 @@ class VoiceAssistant:
                         return True
                 except ValueError:
                     pass
+
+        # ── Radio ───────────────────────────────────────────────────────
+        if cfg.ENABLE_RADIO:
+            if any(w in t for w in ("joue", "lance", "écoute")) and "radio" in t:
+                stations = json.loads(cfg.RADIO_STATIONS)
+                for name, url in stations.items():
+                    if name.lower() in t:
+                        self.tts.speak(f"Lancement de la radio {name}.")
+                        self.radio.play(url)
+                        return True
+            
+            if any(w in t for w in ("arrête la musique", "coupe la radio", "stop radio", "arrête la radio")):
+                if self.radio.stop():
+                    self.tts.speak("Radio arrêtée.")
+                    return True
+
+        # ── Minuteurs & Alarmes ──────────────────────────────────────────
+        if cfg.ENABLE_TIMERS:
+            # Minuteur (ex: "mets un minuteur de 5 minutes")
+            timer_match = re.search(r"minuteur de (\d+)\s*(minute|seconde|heure)", t)
+            if timer_match:
+                val = int(timer_match.group(1))
+                unit = timer_match.group(2)
+                seconds = val
+                if "minute" in unit: seconds = val * 60
+                elif "heure" in unit: seconds = val * 3600
+                
+                self.timers.add_timer(seconds)
+                self.tts.speak(f"C'est fait, minuteur de {val} {unit}s lancé.")
+                return True
+
+            # Alarme (ex: "réveille moi à 7 heures 30")
+            alarm_match = re.search(r"(alarme|réveille|réveil).* à (\d+)\s*heures?\s*(\d*)", t)
+            if alarm_match:
+                h = int(alarm_match.group(2))
+                m = int(alarm_match.group(3)) if alarm_match.group(3) else 0
+                self.timers.add_alarm(h, m)
+                self.tts.speak(f"C'veut être fait. Alarme réglée pour {h} heures {m if m else ''}.")
+                return True
+
         return False
 
     def _cleanup(self):

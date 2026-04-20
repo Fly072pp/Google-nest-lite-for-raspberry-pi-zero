@@ -18,6 +18,7 @@ Assistant vocal autonome fonctionnant entièrement en local. **100% gratuit, auc
 | LLM | **llama-cpp-python** + SmolLM2 135M Q8 | Apache 2.0 — gratuit |
 | TTS | **piper-tts** / pyttsx3 | MIT — gratuit |
 | Audio | **PyAudio** | MIT — gratuit |
+| Radio | **VLC (cvlc)** | GPL — gratuit |
 
 ## 📋 Prérequis matériels
 
@@ -71,7 +72,7 @@ L'assistant intègre une magnifique interface de configuration web. Lancez l'ass
 
 > *Lors de votre toute première connexion, il vous sera demandé de créer un nom d'utilisateur et un mot de passe pour sécuriser l'accès à ce panneau. Personne ne pourra reconfigurer votre maison sans ces identifiants !*
 
-Vous pourrez y configurer le mot d'éveil, l'IA, et vos identifiants Somfy TaHoma en quelques clics !
+Vous pourrez y configurer le mot d'éveil, l'IA, les stations de **Radio** et vos identifiants Somfy TaHoma en quelques clics !
 
 ### Manuelle
 ```bash
@@ -106,6 +107,10 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `au revoir` / `stop` / `arrête` | Éteint l'assistant proprement |
 | `ouvre / ferme les volets [pièce]` | Contrôle les volets via Somfy TaHoma local |
 | `lance le scénario [nom]` | Exécute un scénario Somfy local |
+| `joue la radio [nom]` | Lance un flux radio configuré (VLC) |
+| `arrête la radio / musique` | Stoppe la lecture en cours |
+| `mets un minuteur de [X] min` | Lance un minuteur en arrière-plan |
+| `réveille-moi à [H] heures [M]` | Programme une alarme ponctuelle |
 
 ## 🔧 Configuration avancée (`assistant.py` → classe `Config`)
 
@@ -117,6 +122,9 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `WHISPER_LANGUAGE` | `"fr"` | `None` = détection automatique |
 | `LLM_MODE` | `"local"` | `"local"` ou `"api"` |
 | `LLM_MAX_TOKENS` | `150` | Longueur max de la réponse |
+| `ENABLE_RADIO` | `false` | Active/Désactive le module Radio |
+| `ENABLE_TIMERS` | `true` | Active/Désactive les minuteurs/alarmes |
+| `RADIO_STATIONS` | *(JSON)* | Liste des flux radio (Nom: URL) |
 | `RECORD_SILENCE_THRESHOLD` | `0.015` | Sensibilité détection silence |
 
 ### 🏠 Intégration Somfy TaHoma (Mode Développeur Local)

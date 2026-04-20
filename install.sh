@@ -82,7 +82,7 @@ fi
 
 # ── 7) Configuration Somfy TaHoma (Optionnel) ──────────────────────────────
 echo ""
-echo "[7/8] Configuration Somfy TaHoma (Optionnel)…"
+echo "[7/9] Configuration Somfy TaHoma (Optionnel)…"
 SOMFY_ENV=""
 read -p "Voulez-vous configurer l'intégration locale Somfy TaHoma ? (o/N) : " config_somfy
 if [[ "$config_somfy" =~ ^[oO]$ ]]; then
@@ -96,8 +96,34 @@ if [[ "$config_somfy" =~ ^[oO]$ ]]; then
     fi
 fi
 
-# ── 8) Service systemd ─────────────────────────────────────────────────────
-echo "[8/8] Création du service systemd…"
+# ── 8) Modules Optionnels (Radio, Minuteurs) ──────────────────────────────
+echo ""
+echo "[8/9] Configuration des modules optionnels…"
+ENABLE_RADIO=false
+ENABLE_TIMERS=true
+
+read -p "Voulez-vous activer la radio internet ? (o/N) : " config_radio
+if [[ "$config_radio" =~ ^[oO]$ ]]; then
+    ENABLE_RADIO=true
+    echo "  → Installation de VLC pour la radio…"
+    sudo apt-get install -y vlc-bin vlc-plugin-base --no-install-recommends
+fi
+
+read -p "Voulez-vous activer les minuteurs et alarmes ? (O/n) : " config_timers
+if [[ "$config_timers" =~ ^[nN]$ ]]; then
+    ENABLE_TIMERS=false
+fi
+
+# Création/Mise à jour de config.json
+if [ ! -f "config.json" ]; then
+    echo "{\"ENABLE_RADIO\": $ENABLE_RADIO, \"ENABLE_TIMERS\": $ENABLE_TIMERS}" > config.json
+else
+    # Simple python one-liner to update existing config.json
+    python3 -c "import json; c=json.load(open('config.json')); c.update({'ENABLE_RADIO': $ENABLE_RADIO, 'ENABLE_TIMERS': $ENABLE_TIMERS}); json.dump(c, open('config.json', 'w'), indent=4)"
+fi
+
+# ── 9) Service systemd ─────────────────────────────────────────────────────
+echo "[9/9] Création du service systemd…"
 SERVICE_FILE="/etc/systemd/system/voice-assistant.service"
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]
