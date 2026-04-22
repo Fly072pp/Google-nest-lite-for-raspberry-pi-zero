@@ -5,11 +5,14 @@ import logging
 import secrets
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
+import bluetooth_manager
 
 CONFIG_FILE = "config.json"
 
 log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
+
+bt = bluetooth_manager.BluetoothManager()
 
 app = Flask(__name__)
 # Generate a random secret key for sessions
@@ -113,6 +116,53 @@ def restart_app():
         os.kill(os.getpid(), signal.SIGTERM)
     threading.Thread(target=delay_exit).start()
     return jsonify({"status": "restarting"})
+
+# --- Bluetooth API ---
+
+@app.route("/api/bluetooth/discover", methods=["GET"])
+def bt_discover():
+    devices = bt.discover(duration=5)
+    return jsonify(devices)
+
+@app.route("/api/bluetooth/status", methods=["GET"])
+def bt_status():
+    status = bt.get_status()
+    # Also include list of paired devices
+    paired = bt.get_paired_devices()
+    return jsonify({
+        "connected": status,
+        "paired": paired
+    })
+
+@app.route("/api/bluetooth/connect", methods=["POST"])
+def bt_connect():
+    data = request.json
+    mac = data.get("mac")
+    if not mac:
+        return jsonify({"error": "MAC address required"}), 400
+    
+    success = bt.connect(mac)
+    return jsonify({"status": "success" if success else "failed"})
+
+@app.route("/api/bluetooth/disconnect", methods=["POST"])
+def bt_disconnect():
+    data = request.json
+    mac = data.get("mac")
+    if not mac:
+        return jsonify({"error": "MAC address required"}), 400
+    
+    bt.disconnect(mac)
+    return jsonify({"status": "success"})
+
+@app.route("/api/bluetooth/remove", methods=["POST"])
+def bt_remove():
+    data = request.json
+    mac = data.get("mac")
+    if not mac:
+        return jsonify({"error": "MAC address required"}), 400
+    
+    bt.remove(mac)
+    return jsonify({"status": "success"})
 
 def start_server():
     app.run(host="0.0.0.0", port=6524, debug=False, use_reloader=False)

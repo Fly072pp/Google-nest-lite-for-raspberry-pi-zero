@@ -22,9 +22,13 @@ sudo apt-get install -y \
     python3-pip python3-venv python3-dev \
     portaudio19-dev libsndfile1 \
     espeak-ng espeak-ng-data \
-    alsa-utils sox \
+    alsa-utils sox bluez bluez-tools \
     git wget curl cmake \
     libopenblas-dev          # accélération BLAS pour llama-cpp
+
+# ── 1.1) Groupes utilisateur ───────────────────────────────────────────────
+sudo usermod -aG bluetooth $USER
+sudo usermod -aG audio $USER
 
 # ── 2) Environnement virtuel Python ───────────────────────────────────────
 echo "[2/7] Création de l'environnement virtuel Python…"
@@ -35,8 +39,8 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip wheel
 
 # ── 3) Bibliothèques Python ────────────────────────────────────────────────
-echo "[3/7] Installation de PyAudio, Numpy, openwakeword, faster-whisper…"
-pip install pyaudio numpy openwakeword faster-whisper psutil openai pyttsx3
+echo "[3/7] Installation de PyAudio, Numpy, openwakeword, faster-whisper, pexpect…"
+pip install pyaudio numpy openwakeword faster-whisper psutil openai pyttsx3 pexpect
 
 # ── 4) llama-cpp-python (compilé avec OpenBLAS) ───────────────────────────
 echo "[4/7] Compilation de llama-cpp-python (OpenBLAS, ~10 min)…"

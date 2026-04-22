@@ -117,6 +117,11 @@ class Config:
     ENABLE_TIMERS: bool = True
     RADIO_STATIONS: str = '{"France Info": "https://stream.radiofrance.fr/franceinfo/franceinfo.m3u8", "FIP": "https://stream.radiofrance.fr/fip/fip.m3u8"}'
 
+    # ── Chromecast ─────────────────────────────────────────────────────────
+    ENABLE_CHROMECAST: bool = False
+    CHROMECAST_NAME: str = ""
+    CHROMECAST_APPS: str = '{"YouTube": "233637DE", "Netflix": "CA5E845A", "Spotify": "CC32E5A1"}'
+
 cfg = Config()
 
 import json
@@ -292,6 +297,77 @@ class TimerManager:
 
     def stop(self):
         self._running = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gestion des Chromecasts
+# ─────────────────────────────────────────────────────────────────────────────
+class ChromecastManager:
+    def __init__(self, cast_name: str = ""):
+        self.cast_name = cast_name
+        self._cast = None
+        self._browser = None
+
+    def _get_cast(self):
+        if self._cast:
+            return self._cast
+
+        try:
+            import pychromecast
+            log.info(f"📺 Recherche du Chromecast : {self.cast_name if self.cast_name else 'par défaut'}...")
+            
+            chromecasts, browser = pychromecast.get_chromecasts()
+            if not chromecasts:
+                log.warning("Aucun Chromecast trouvé sur le réseau.")
+                return None
+
+            if self.cast_name:
+                cast = next((cc for cc in chromecasts if cc.name == self.cast_name), None)
+            else:
+                cast = chromecasts[0]
+
+            if not cast:
+                log.warning(f"Chromecast '{self.cast_name}' introuvable.")
+                return None
+
+            cast.wait()
+            self._cast = cast
+            self._browser = browser
+            log.info(f"✅ Connecté au Chromecast : {cast.name}")
+            return self._cast
+        except Exception as e:
+            log.error(f"Erreur lors de la connexion au Chromecast : {e}")
+            return None
+
+    def launch_app(self, app_id: str):
+        cast = self._get_cast()
+        if cast:
+            log.info(f"🚀 Lancement de l'application ID: {app_id} sur {cast.name}")
+            cast.start_app(app_id)
+            return True
+        return False
+
+    def stop(self):
+        cast = self._get_cast()
+        if cast:
+            log.info(f"🛑 Arrêt du contenu sur {cast.name}")
+            cast.quit_app()
+            return True
+        return False
+
+    def pause(self):
+        cast = self._get_cast()
+        if cast and cast.media_controller:
+            cast.media_controller.pause()
+            return True
+        return False
+
+    def play(self):
+        cast = self._get_cast()
+        if cast and cast.media_controller:
+            cast.media_controller.play()
+            return True
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -679,6 +755,7 @@ class VoiceAssistant:
         """Boucle principale : écoute → transcription → LLM → TTS."""
         self.radio = RadioManager()
         self.timers = TimerManager(self.tts)
+        self.chromecast = ChromecastManager(cfg.CHROMECAST_NAME)
         
         self.tts.speak("Assistant prêt. Dites Hé Google pour commencer.")
         try:
@@ -817,6 +894,31 @@ class VoiceAssistant:
                 self.timers.add_alarm(h, m)
                 self.tts.speak(f"C'veut être fait. Alarme réglée pour {h} heures {m if m else ''}.")
                 return True
+
+        # ── Chromecast ──────────────────────────────────────────────────
+        if cfg.ENABLE_CHROMECAST:
+            if any(w in t for w in ("lance", "joue", "ouvre", "écoute")) and any(w in t for w in ("télé", "tv", "chromecast")):
+                apps = json.loads(cfg.CHROMECAST_APPS)
+                for name, app_id in apps.items():
+                    if name.lower() in t:
+                        self.tts.speak(f"Lancement de {name} sur la télé.")
+                        self.chromecast.launch_app(app_id)
+                        return True
+            
+            if any(w in t for w in ("arrête la télé", "éteins la télé", "stop tv", "coupe la télé")):
+                if self.chromecast.stop():
+                    self.tts.speak("Télé arrêtée.")
+                    return True
+            
+            if any(w in t for w in ("pause", "met en pause")) and any(w in t for w in ("télé", "tv")):
+                if self.chromecast.pause():
+                    self.tts.speak("C'est mis en pause.")
+                    return True
+
+            if any(w in t for w in ("reprends", "lecture")) and any(w in t for w in ("télé", "tv")):
+                if self.chromecast.play():
+                    self.tts.speak("C'est reparti.")
+                    return True
 
         return False
 

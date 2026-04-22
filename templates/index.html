@@ -181,6 +181,77 @@
             opacity: 1;
         }
 
+        /* Bluetooth specific */
+        .device-list {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .device-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .device-item:hover {
+            background: rgba(15, 23, 42, 0.6);
+        }
+
+        .device-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .device-mac {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .device-status {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .status-connected {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
     </style>
 </head>
 <body>
@@ -213,6 +284,25 @@
                     <label>Sensibilité au silence</label>
                     <span class="hint">Seuil RMS de détection de fin de phrase (ex: 0.015)</span>
                     <input type="number" id="RECORD_SILENCE_THRESHOLD" name="RECORD_SILENCE_THRESHOLD" step="0.005" placeholder="0.015">
+                </div>
+            </div>
+
+            <!-- Bluetooth -->
+            <div class="card">
+                <h2>🔊 Haut-parleurs Bluetooth</h2>
+                <span class="hint">Connectez un haut-parleur externe pour sortir l'audio de l'assistant.</span>
+                
+                <div id="btStatus">
+                    <!-- Dynamic status here -->
+                </div>
+
+                <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <label>Appareils à proximité</label>
+                    <button type="button" class="btn-primary btn-small" id="btnScanBT">Lancer un scan</button>
+                </div>
+
+                <div id="btDevices" class="device-list">
+                    <p class="hint" style="text-align: center; margin-top: 20px;">Cliquez sur scan pour rechercher des appareils.</p>
                 </div>
             </div>
 
@@ -271,6 +361,31 @@
                     <label>Configuration des stations (JSON)</label>
                     <span class="hint">Format: {"Nom": "URL", ...}</span>
                     <textarea id="RADIO_STATIONS" name="RADIO_STATIONS" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
+                </div>
+            </div>
+
+            <!-- Chromecast -->
+            <div class="card">
+                <h2>📺 Chromecast</h2>
+                
+                <div class="form-group">
+                    <label>Activer Chromecast</label>
+                    <select id="ENABLE_CHROMECAST" name="ENABLE_CHROMECAST">
+                        <option value="true">Activé</option>
+                        <option value="false">Désactivé</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Nom du Chromecast (Cible)</label>
+                    <span class="hint">Ex: Télé du salon. Laissez vide pour le premier trouvé.</span>
+                    <input type="text" id="CHROMECAST_NAME" name="CHROMECAST_NAME" placeholder="Nom de l'appareil">
+                </div>
+
+                <div class="form-group">
+                    <label>Applications (JSON)</label>
+                    <span class="hint">Format: {"Nom": "ID", ...}</span>
+                    <textarea id="CHROMECAST_APPS" name="CHROMECAST_APPS" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
                 </div>
             </div>
 
@@ -361,6 +476,111 @@
                 });
             }
         });
+
+        // --- Bluetooth Logic ---
+        function loadBTStatus() {
+            fetch('/api/bluetooth/status')
+                .then(res => res.json())
+                .then(data => {
+                    const statusEl = document.getElementById('btStatus');
+                    if (data.connected) {
+                        statusEl.innerHTML = `
+                            <div class="device-item" style="border-color: var(--success); background: rgba(16, 185, 129, 0.05);">
+                                <div class="device-info">
+                                    <span class="device-name">${data.connected.name}</span>
+                                    <span class="device-mac">${data.connected.mac}</span>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <span class="device-status status-connected">Connecté</span>
+                                    <button type="button" class="btn-danger btn-small" onclick="disconnectBT('${data.connected.mac}')">Déconnecter</button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        statusEl.innerHTML = `<p class="hint">Aucun haut-parleur connecté.</p>`;
+                    }
+                });
+        }
+
+        function scanBT() {
+            const btn = document.getElementById('btnScanBT');
+            const list = document.getElementById('btDevices');
+            btn.disabled = true;
+            btn.innerHTML = `<div class="loading-spinner"></div> Scan en cours...`;
+            list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Recherche d'appareils Bluetooth (5s)...</p>`;
+
+            fetch('/api/bluetooth/discover')
+                .then(res => res.json())
+                .then(devices => {
+                    btn.disabled = false;
+                    btn.innerHTML = `Lancer un scan`;
+                    
+                    if (devices.length === 0) {
+                        list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Aucun appareil trouvé.</p>`;
+                        return;
+                    }
+
+                    list.innerHTML = '';
+                    devices.forEach(dev => {
+                        const item = document.createElement('div');
+                        item.className = 'device-item';
+                        item.innerHTML = `
+                            <div class="device-info">
+                                <span class="device-name">${dev.name || 'Appareil inconnu'}</span>
+                                <span class="device-mac">${dev.mac}</span>
+                            </div>
+                            <button type="button" class="btn-primary btn-small" onclick="connectBT('${dev.mac}')">Connecter</button>
+                        `;
+                        list.appendChild(item);
+                    });
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = `Lancer un scan`;
+                    list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px; color: var(--danger);">Erreur lors du scan.</p>`;
+                });
+        }
+
+        function connectBT(mac) {
+            const notif = document.getElementById('notification');
+            notif.innerHTML = "Tentative de connexion...";
+            notif.style.background = "var(--accent)";
+            notif.classList.add('show');
+
+            fetch('/api/bluetooth/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac: mac })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    notif.innerHTML = "✅ Connecté !";
+                    notif.style.background = "var(--success)";
+                    loadBTStatus();
+                } else {
+                    notif.innerHTML = "❌ Échec de la connexion";
+                    notif.style.background = "var(--danger)";
+                }
+                setTimeout(() => notif.classList.remove('show'), 3000);
+            });
+        }
+
+        function disconnectBT(mac) {
+            fetch('/api/bluetooth/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mac: mac })
+            })
+            .then(() => {
+                loadBTStatus();
+            });
+        }
+
+        document.getElementById('btnScanBT').addEventListener('click', scanBT);
+        
+        // Initial load
+        loadBTStatus();
     </script>
 </body>
 </html>

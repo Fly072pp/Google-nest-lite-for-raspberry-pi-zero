@@ -35,3 +35,6 @@ requests>=2.28.0
 
 # Interface d'Administration Web
 Flask>=2.0.0
+
+# Chromecast Control
+pychromecast>=14.0.0
