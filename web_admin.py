@@ -13,6 +13,11 @@ log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
 
 bt = bluetooth_manager.BluetoothManager()
+active_assistant = None
+
+def set_assistant(assistant):
+    global active_assistant
+    active_assistant = assistant
 
 app = Flask(__name__)
 # Generate a random secret key for sessions
@@ -163,6 +168,28 @@ def bt_remove():
     
     bt.remove(mac)
     return jsonify({"status": "success"})
+
+# --- Chat API ---
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    if not active_assistant:
+        return jsonify({"response": "Assistant non initialisé", "status": "error"}), 503
+    
+    data = request.json
+    message = data.get("message")
+    if not message:
+        return jsonify({"response": "Message vide", "status": "error"}), 400
+    
+    # Traitement de la requête par l'assistant
+    # Cela va aussi générer la voix sur les HP du Pi
+    response = active_assistant.process_query(message)
+    
+    # On s'assure que l'assistant parle la réponse
+    if response:
+        active_assistant.tts.speak(response)
+        
+    return jsonify({"response": response, "status": "success"})
 
 def start_server():
     app.run(host="0.0.0.0", port=6524, debug=False, use_reloader=False)

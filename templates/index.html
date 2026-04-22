@@ -252,6 +252,58 @@
             to { transform: rotate(360deg); }
         }
 
+        /* Chat interface */
+        .chat-container {
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-msg {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: var(--accent);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-assistant {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        #chatInput {
+            flex-grow: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -389,7 +441,22 @@
                 </div>
             </div>
 
-            <!-- Somfy -->
+            <!-- Chromecast Card ... -->
+
+            <!-- Chat Card -->
+            <div class="card">
+                <h2>💬 Conversation Directe</h2>
+                <span class="hint">Discutez avec l'assistant ici si vous ne pouvez pas utiliser le micro.</span>
+                
+                <div id="chatHistory" class="chat-container">
+                    <div class="chat-msg msg-assistant">Bonjour ! Comment puis-je vous aider aujourd'hui ?</div>
+                </div>
+
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" placeholder="Tapez votre message..." autocomplete="off">
+                    <button type="button" class="btn-primary" id="btnSendChat">Envoyer</button>
+                </div>
+            </div>
             <div class="card">
                 <h2>🏠 Domotique (Somfy TaHoma)</h2>
                 
@@ -579,6 +646,58 @@
 
         document.getElementById('btnScanBT').addEventListener('click', scanBT);
         
+        // --- Chat Logic ---
+        const chatHistory = document.getElementById('chatHistory');
+        const chatInput = document.getElementById('chatInput');
+        const btnSendChat = document.getElementById('btnSendChat');
+
+        function appendMessage(text, type) {
+            const msg = document.createElement('div');
+            msg.className = `chat-msg msg-${type}`;
+            msg.textContent = text;
+            chatHistory.appendChild(msg);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function sendChat() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+
+            appendMessage(text, 'user');
+            chatInput.value = '';
+            
+            // Show a thinking indicator
+            const thinking = document.createElement('div');
+            thinking.className = 'chat-msg msg-assistant';
+            thinking.innerHTML = '<i>En train de réfléchir...</i>';
+            chatHistory.appendChild(thinking);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            })
+            .then(res => res.json())
+            .then(data => {
+                chatHistory.removeChild(thinking);
+                if (data.status === 'success') {
+                    appendMessage(data.response, 'assistant');
+                } else {
+                    appendMessage("Erreur : " + (data.response || "Inconnue"), 'assistant');
+                }
+            })
+            .catch(err => {
+                chatHistory.removeChild(thinking);
+                appendMessage("Impossible de contacter l'assistant.", 'assistant');
+            });
+        }
+
+        btnSendChat.addEventListener('click', sendChat);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChat();
+        });
+
         // Initial load
         loadBTStatus();
     </script>

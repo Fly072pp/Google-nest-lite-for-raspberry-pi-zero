@@ -144,6 +144,7 @@ if os.path.exists("config.json"):
 
 try:
     import web_admin
+    # Le serveur web sera informé de l'instance d'assistant plus tard
     threading.Thread(target=web_admin.start_server, daemon=True).start()
     log.info("🌐 Panneau d'administration web lancé sur le port 6524")
 except Exception as e:
@@ -751,6 +752,23 @@ class VoiceAssistant:
         except ImportError:
             pass  # psutil optionnel
 
+    def process_query(self, text: str) -> Optional[str]:
+        """Traite une requête texte et retourne la réponse."""
+        # 1) Commandes intégrées
+        builtin_response = self._handle_builtin_command(text)
+        if builtin_response:
+            return builtin_response
+
+        # 2) LLM
+        try:
+            # On ne dit "Un instant" que si c'est une requête vocale (détectée par l'absence d'un flag ?)
+            # Pour simplifier, on le laisse ou on l'enlève.
+            response = self.llm.generate(text)
+            return response
+        except Exception as e:
+            log.error("Erreur LLM : %s", e)
+            return "Désolé, je n'ai pas pu générer de réponse."
+
     def run(self):
         """Boucle principale : écoute → transcription → LLM → TTS."""
         self.radio = RadioManager()
@@ -782,20 +800,10 @@ class VoiceAssistant:
                     self.tts.speak("Je n'ai pas compris, pouvez-vous répéter ?")
                     continue
 
-                # ── Commandes intégrées ─────────────────────────────────
-                if self._handle_builtin_command(text):
-                    continue
-
-                # ── Génération de la réponse LLM ────────────────────────
-                try:
-                    self.tts.speak("Un instant…")
-                    response = self.llm.generate(text)
-                except Exception as e:
-                    log.error("Erreur LLM : %s", e)
-                    response = "Désolé, je n'ai pas pu générer de réponse."
-
-                # ── Synthèse vocale ─────────────────────────────────────
-                self.tts.speak(response)
+                # ── Traitement de la requête ───────────────────────────
+                response = self.process_query(text)
+                if response:
+                    self.tts.speak(response)
                 gc.collect()  # libère la mémoire après chaque cycle
 
         except KeyboardInterrupt:
@@ -803,20 +811,23 @@ class VoiceAssistant:
         finally:
             self._cleanup()
 
-    def _handle_builtin_command(self, text: str) -> bool:
-        """Gère les commandes intégrées sans passer par le LLM."""
+    def _handle_builtin_command(self, text: str) -> Optional[str]:
+        """Gère les commandes intégrées sans passer par le LLM. Retourne la réponse texte si gérée."""
         t = text.lower().strip()
         if any(w in t for w in ("réinitialise", "reset", "oublie tout")):
             self.llm.reset_history()
-            self.tts.speak("Historique effacé.")
-            return True
+            return "Historique effacé."
         if any(w in t for w in ("quelle heure", "il est quelle heure")):
             h = time.strftime("%H heures %M")
-            self.tts.speak(f"Il est {h}.")
-            return True
+            return f"Il est {h}."
         if any(w in t for w in ("au revoir", "stop", "quitte", "arrête")):
+            # On retourne la réponse avant de quitter
+            # Note: Le quitter effectif se fera dans la boucle principale si besoin, 
+            # ou via un flag. Pour l'instant, on lance l'exception ici.
             self.tts.speak("Au revoir !")
             raise KeyboardInterrupt
+        
+        # ... (reste des commandes Somfy, Radio, etc.)
 
         # ── Intégration Somfy TaHoma ────────────────────────────────────
         if hasattr(self, "somfy") and self.somfy:
@@ -835,12 +846,11 @@ class VoiceAssistant:
                     
                     msg = "J'ouvre les volets" if action == "open" else ("Je ferme les volets" if action == "close" else "J'arrête les volets")
                     if room: msg += f" pièce {room}"
-                    self.tts.speak(msg)
                     
                     success = self.somfy.control_shutters(action, room)
                     if not success:
-                        self.tts.speak("Il y a eu un problème avec les volets.")
-                    return True
+                        return "Il y a eu un problème avec les volets."
+                    return msg
                     
             if "scénario" in t or "scenario" in t:
                 words = t.split()
@@ -848,11 +858,10 @@ class VoiceAssistant:
                     idx = words.index("scénario") if "scénario" in words else words.index("scenario")
                     if idx + 1 < len(words):
                         keyword = words[idx + 1]
-                        self.tts.speak(f"Lancement du scénario {keyword}.")
                         success = self.somfy.execute_scenario(keyword)
                         if not success:
-                            self.tts.speak(f"Scénario {keyword} introuvable.")
-                        return True
+                            return f"Scénario {keyword} introuvable."
+                        return f"Lancement du scénario {keyword}."
                 except ValueError:
                     pass
 
@@ -862,14 +871,12 @@ class VoiceAssistant:
                 stations = json.loads(cfg.RADIO_STATIONS)
                 for name, url in stations.items():
                     if name.lower() in t:
-                        self.tts.speak(f"Lancement de la radio {name}.")
                         self.radio.play(url)
-                        return True
+                        return f"Lancement de la radio {name}."
             
             if any(w in t for w in ("arrête la musique", "coupe la radio", "stop radio", "arrête la radio")):
                 if self.radio.stop():
-                    self.tts.speak("Radio arrêtée.")
-                    return True
+                    return "Radio arrêtée."
 
         # ── Minuteurs & Alarmes ──────────────────────────────────────────
         if cfg.ENABLE_TIMERS:
@@ -883,8 +890,7 @@ class VoiceAssistant:
                 elif "heure" in unit: seconds = val * 3600
                 
                 self.timers.add_timer(seconds)
-                self.tts.speak(f"C'est fait, minuteur de {val} {unit}s lancé.")
-                return True
+                return f"C'est fait, minuteur de {val} {unit}s lancé."
 
             # Alarme (ex: "réveille moi à 7 heures 30")
             alarm_match = re.search(r"(alarme|réveille|réveil).* à (\d+)\s*heures?\s*(\d*)", t)
@@ -892,8 +898,7 @@ class VoiceAssistant:
                 h = int(alarm_match.group(2))
                 m = int(alarm_match.group(3)) if alarm_match.group(3) else 0
                 self.timers.add_alarm(h, m)
-                self.tts.speak(f"C'veut être fait. Alarme réglée pour {h} heures {m if m else ''}.")
-                return True
+                return f"C'est fait. Alarme réglée pour {h} heures {m if m else ''}."
 
         # ── Chromecast ──────────────────────────────────────────────────
         if cfg.ENABLE_CHROMECAST:
@@ -901,26 +906,22 @@ class VoiceAssistant:
                 apps = json.loads(cfg.CHROMECAST_APPS)
                 for name, app_id in apps.items():
                     if name.lower() in t:
-                        self.tts.speak(f"Lancement de {name} sur la télé.")
                         self.chromecast.launch_app(app_id)
-                        return True
+                        return f"Lancement de {name} sur la télé."
             
             if any(w in t for w in ("arrête la télé", "éteins la télé", "stop tv", "coupe la télé")):
                 if self.chromecast.stop():
-                    self.tts.speak("Télé arrêtée.")
-                    return True
+                    return "Télé arrêtée."
             
             if any(w in t for w in ("pause", "met en pause")) and any(w in t for w in ("télé", "tv")):
                 if self.chromecast.pause():
-                    self.tts.speak("C'est mis en pause.")
-                    return True
+                    return "C'est mis en pause sur la télé."
 
             if any(w in t for w in ("reprends", "lecture")) and any(w in t for w in ("télé", "tv")):
                 if self.chromecast.play():
-                    self.tts.speak("C'est reparti.")
-                    return True
+                    return "C'est reparti sur la télé."
 
-        return False
+        return None
 
     def _cleanup(self):
         log.info("Nettoyage des ressources…")
@@ -960,4 +961,12 @@ if __name__ == "__main__":
         cfg.LLM_MODEL_PATH = args.model
 
     assistant = VoiceAssistant()
+    
+    # Enregistrement de l'assistant auprès du serveur web
+    try:
+        import web_admin
+        web_admin.set_assistant(assistant)
+    except Exception:
+        pass
+
     assistant.run()

@@ -44,14 +44,18 @@ Assistant vocal autonome fonctionnant entièrement en local. **100% gratuit, auc
 
 > **170 MB de marge libre** — très confortable sur 512 MB. Swap optionnel mais recommandé (128 MB suffisent) :
 > ```bash
+> sudo apt-get update && sudo apt-get install -y dphys-swapfile
 > sudo dphys-swapfile swapoff
-> sudo nano /etc/dphys-swapfile  # CONF_SWAPSIZE=128
+> sudo nano /etc/dphys-swapfile  # Ajouter/ Modifier la ligne CONF_SWAPSIZE=128
 > sudo dphys-swapfile setup && sudo dphys-swapfile swapon
 > ```
 
 ## 🚀 Installation rapide
 
 ```bash
+# 0. Si Git pas installé
+sudo apt-get install git
+
 # 1. Copiez les fichiers sur votre Pi
 git clone https://github.com/Fly072pp/Google-nest-lite-for-raspberry-pi-zero ~/assistant && cd ~/assistant
 
