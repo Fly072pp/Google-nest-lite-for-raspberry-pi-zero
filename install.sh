@@ -45,6 +45,8 @@ pip install pyaudio numpy openwakeword faster-whisper psutil openai pyttsx3 pexp
 # ── 4) llama-cpp-python (compilé avec OpenBLAS) ───────────────────────────
 echo "[4/7] Compilation de llama-cpp-python (OpenBLAS, ~10 min)…"
 CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" \
+    CMAKE_BUILD_PARALLEL_LEVEL=1 \
+    MAKEFLAGS="-j1" \
     pip install --no-cache-dir llama-cpp-python
 
 # ── 5) Téléchargement du modèle LLM (SmolLM2 135M Q8 ~150 MB) ────────────
