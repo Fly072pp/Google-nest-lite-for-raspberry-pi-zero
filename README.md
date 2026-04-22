@@ -57,7 +57,7 @@ Assistant vocal autonome fonctionnant entièrement en local. **100% gratuit, auc
 sudo apt-get install git
 
 # 1. Copiez les fichiers sur votre Pi
-git clone https://github.com/Fly072pp/Google-nest-lite-for-raspberry-pi-zero ~/assistant && cd ~/assistant
+git clone https://github.com/Fly072pp/Google-nest-lite-for-raspberry-pi-zero && cd ~/Google-nest-lite-for-raspberry-pi-zero
 
 # 2. Rendez le script exécutable
 chmod +x install.sh
