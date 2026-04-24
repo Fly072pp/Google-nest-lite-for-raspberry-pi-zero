@@ -454,7 +454,8 @@ class WakeWordDetector:
         # Les modèles intégrés sont téléchargés automatiquement au premier lancement
         # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
         self._model = Model(
-            wakeword_models=[cfg.WAKE_WORD.lower()]
+            wakeword_models=[cfg.WAKE_WORD.lower()],
+            inference_framework="onnx",
         )
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
