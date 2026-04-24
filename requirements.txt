@@ -23,6 +23,7 @@ pyttsx3>=2.90             # fallback universel (espeak sur Linux)
 
 # Monitoring RAM (optionnel mais recommandé)
 psutil>=5.9.0
+pexpect>=4.9.0
 
 # API locale Somfy
 requests>=2.28.0
@@ -32,3 +33,6 @@ Flask>=2.0.0
 
 # Chromecast Control
 pychromecast>=14.0.0
+
+# Wake on LAN
+wakeonlan>=3.1.0

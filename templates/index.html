@@ -371,6 +371,16 @@
                 </div>
 
                 <div class="form-group">
+                    <label>Langue de transcription</label>
+                    <span class="hint">"fr" pour Français, ou "auto" pour détection automatique.</span>
+                    <select id="WHISPER_LANGUAGE" name="WHISPER_LANGUAGE">
+                        <option value="fr">Français (Recommandé)</option>
+                        <option value="en">Anglais</option>
+                        <option value="auto">Détection automatique</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label>Architecture du Cerveau (LLM)</label>
                     <span class="hint">Local (llama-cpp sur la carte) ou distant (Ollama sur le réseau)</span>
                     <select id="LLM_MODE" name="LLM_MODE">
@@ -454,6 +464,23 @@
             </div>
 
             <!-- Chromecast Card ... -->
+            <div class="card">
+                <h2>💻 Wake on LAN</h2>
+                
+                <div class="form-group">
+                    <label>Activer Wake on LAN</label>
+                    <select id="ENABLE_WOL" name="ENABLE_WOL">
+                        <option value="true">Activé</option>
+                        <option value="false">Désactivé</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Appareils (JSON)</label>
+                    <span class="hint">Format: {"Nom": "MAC Address", ...}</span>
+                    <textarea id="WOL_DEVICES" name="WOL_DEVICES" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
+                </div>
+            </div>
 
             <!-- Chat Card -->
             <div class="card">
@@ -508,7 +535,10 @@
                 for (const key in data) {
                     const el = document.getElementById(key);
                     if (el) {
-                        el.value = data[key];
+                        let val = data[key];
+                        // Handle special case for null -> auto
+                        if (key === "WHISPER_LANGUAGE" && val === null) val = "auto";
+                        el.value = val;
                     }
                 }
             })
@@ -522,15 +552,16 @@
             for (let [key, value] of formData.entries()) {
                 // Special handling for boolean strings from selects
                 if (value === "true") value = true;
-                if (value === "false") value = false;
-
-                // Convert numbers dynamically if it looks like a number
-                if (value !== true && value !== false && value && !isNaN(value) && !key.includes('PIN')) {
+                else if (value === "false") value = false;
+                // Special handling for WHISPER_LANGUAGE "auto" -> null
+                else if (key === "WHISPER_LANGUAGE" && value === "auto") value = null;
+                // Convert numbers dynamically if it looks like a number and NOT a PIN or String-based number
+                else if (value !== null && value !== "" && !isNaN(value) && !key.includes('PIN') && !key.includes('CHROMECAST_APPS')) {
                     // Check if it should be float or int
                     data[key] = value.includes('.') ? parseFloat(value) : parseInt(value);
-                } else {
-                    data[key] = value;
+                    continue;
                 }
+                data[key] = value;
             }
 
             fetch('/api/config', {

@@ -39,8 +39,8 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip wheel
 
 # ── 3) Bibliothèques Python ────────────────────────────────────────────────
-echo "[3/7] Installation de PyAudio, Numpy, openwakeword, faster-whisper, pexpect…"
-pip install pyaudio numpy openwakeword faster-whisper psutil openai pyttsx3 pexpect
+echo "[3/6] Installation des bibliothèques Python (requirements.txt)…"
+pip install -r requirements.txt
 
 # ── 4) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
 echo "[4/5] Installation de Piper TTS…"

@@ -122,6 +122,21 @@ class Config:
     CHROMECAST_NAME: str = ""
     CHROMECAST_APPS: str = '{"YouTube": "233637DE", "Netflix": "CA5E845A", "Spotify": "CC32E5A1"}'
 
+    # ── Wake on LAN ───────────────────────────────────────────────────────
+    ENABLE_WOL: bool = False
+    WOL_DEVICES: str = '{"Mon PC": "AA:BB:CC:DD:EE:FF"}'
+
+class WakeOnLanManager:
+    def wake(self, mac_address: str):
+        try:
+            from wakeonlan import send_magic_packet
+            log.info(f"⚡ Envoi du paquet magique WOL à {mac_address}")
+            send_magic_packet(mac_address)
+            return True
+        except Exception as e:
+            log.error(f"Erreur lors de l'envoi du paquet WOL : {e}")
+            return False
+
 cfg = Config()
 
 import json
@@ -130,11 +145,18 @@ if os.path.exists("config.json"):
         with open("config.json", "r", encoding="utf-8") as f:
             data = json.load(f)
             for k, v in data.items():
-                if hasattr(cfg, k) and v != "":
-                    # Types supportés: float, int, str
+                if hasattr(cfg, k):
+                    if v is None:
+                        setattr(cfg, k, None)
+                        continue
+                    if v == "":
+                        continue
+                    # Types supportés: float, int, str, bool
                     try:
-                        if isinstance(getattr(cfg, k), float): v = float(v)
-                        elif isinstance(getattr(cfg, k), int): v = int(v)
+                        curr_v = getattr(cfg, k)
+                        if isinstance(curr_v, bool): v = bool(v)
+                        elif isinstance(curr_v, float): v = float(v)
+                        elif isinstance(curr_v, int): v = int(v)
                         else: v = str(v)
                         setattr(cfg, k, v)
                     except ValueError:
@@ -432,8 +454,7 @@ class WakeWordDetector:
         # Les modèles intégrés sont téléchargés automatiquement au premier lancement
         # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
         self._model = Model(
-            wakeword_models=[cfg.WAKE_WORD],
-            inference_framework="onnx",
+            wakeword_models=[cfg.WAKE_WORD]
         )
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
@@ -774,6 +795,7 @@ class VoiceAssistant:
         self.radio = RadioManager()
         self.timers = TimerManager(self.tts)
         self.chromecast = ChromecastManager(cfg.CHROMECAST_NAME)
+        self.wol = WakeOnLanManager()
         
         self.tts.speak("Assistant prêt. Dites Hé Google pour commencer.")
         try:
@@ -920,6 +942,15 @@ class VoiceAssistant:
             if any(w in t for w in ("reprends", "lecture")) and any(w in t for w in ("télé", "tv")):
                 if self.chromecast.play():
                     return "C'est reparti sur la télé."
+
+        # ── Wake on LAN ──────────────────────────────────────────────────
+        if cfg.ENABLE_WOL:
+            if any(w in t for w in ("réveille", "allume", "démarre")) and any(w in t for w in ("pc", "ordinateur", "ordi", "machine")):
+                devices = json.loads(cfg.WOL_DEVICES)
+                for name, mac in devices.items():
+                    if name.lower() in t or (("pc" in t or "ordinateur" in t) and len(devices) == 1):
+                        self.wol.wake(mac)
+                        return f"J'ai envoyé le signal d'allumage à {name}."
 
         return None
 
