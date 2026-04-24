@@ -120,7 +120,7 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 
 | Paramètre | Défaut | Description |
 |-----------|--------|-------------|
-| `WAKE_WORD` | `"hey_google"` | Mot d'éveil (`"hey_google"`, `"alexa"`, `"hey_jarvis"`…) |
+| `WAKE_WORD` | `"axel"` | Mot d'éveil (`"hey_google"`, `"alexa"`, `"hey_jarvis"`…) |
 | `WAKE_WORD_THRESHOLD` | `0.5` | Sensibilité [0–1] (plus élevé = moins de faux positifs) |
 | `WHISPER_MODEL` | `"tiny"` | `"tiny"` (~60 MB) ou `"base"` (~145 MB) |
 | `WHISPER_LANGUAGE` | `"fr"` | `None` = détection automatique |
