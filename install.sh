@@ -42,27 +42,8 @@ pip install --upgrade pip wheel
 echo "[3/7] Installation de PyAudio, Numpy, openwakeword, faster-whisper, pexpect…"
 pip install pyaudio numpy openwakeword faster-whisper psutil openai pyttsx3 pexpect
 
-# ── 4) llama-cpp-python (compilé avec OpenBLAS) ───────────────────────────
-echo "[4/7] Compilation de llama-cpp-python (OpenBLAS, ~10 min)…"
-CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" \
-    CMAKE_BUILD_PARALLEL_LEVEL=1 \
-    MAKEFLAGS="-j1" \
-    pip install --no-cache-dir llama-cpp-python
-
-# ── 5) Téléchargement du modèle LLM (SmolLM2 135M Q8 ~150 MB) ────────────
-echo "[5/7] Téléchargement du modèle LLM SmolLM2 135M Q8…"
-mkdir -p "$MODELS_DIR"
-MODEL_FILE="$MODELS_DIR/SmolLM2-135M-Instruct-Q8_0.gguf"
-if [ ! -f "$MODEL_FILE" ]; then
-    wget -q --show-progress \
-        "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q8_0.gguf" \
-        -O "$MODEL_FILE"
-else
-    echo "  → Modèle déjà présent, skip."
-fi
-
-# ── 6) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
-echo "[6/7] Installation de Piper TTS…"
+# ── 4) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
+echo "[4/5] Installation de Piper TTS…"
 mkdir -p "$PIPER_DIR"
 PIPER_VERSION="2023.11.14-2"
 PIPER_ARCHIVE="piper_linux_aarch64.tar.gz"
@@ -104,7 +85,7 @@ fi
 
 # ── 8) Modules Optionnels (Radio, Minuteurs) ──────────────────────────────
 echo ""
-echo "[8/9] Configuration des modules optionnels…"
+echo "[5/5] Configuration des modules optionnels…"
 ENABLE_RADIO=false
 ENABLE_TIMERS=true
 
@@ -129,7 +110,7 @@ else
 fi
 
 # ── 9) Service systemd ─────────────────────────────────────────────────────
-echo "[9/9] Création du service systemd…"
+echo "[6/6] Création du service systemd…"
 SERVICE_FILE="/etc/systemd/system/voice-assistant.service"
 sudo tee "$SERVICE_FILE" > /dev/null <<EOF
 [Unit]

@@ -71,7 +71,7 @@ class Config:
 
     # ── LLM ───────────────────────────────────────────────────────────────
     # Mode: "local" (llama-cpp) ou "api" (OpenAI-compatible, ex: Ollama local)
-    LLM_MODE: str = "local"
+    LLM_MODE: str = "api"
 
     # Paramètres llama-cpp (mode "local")
     # SmolLM2 135M Q8 : ~150 MB RAM, très rapide sur CPU ARM

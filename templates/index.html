@@ -383,6 +383,18 @@
                     <label>Longueur de réponse max (Tokens)</label>
                     <input type="number" id="LLM_MAX_TOKENS" name="LLM_MAX_TOKENS" placeholder="150">
                 </div>
+
+                <div class="form-group" style="padding-top: 15px; border-top: 1px solid var(--glass-border);">
+                    <label>Serveur Ollama Local</label>
+                    <div id="ollamaStatusArea" style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
+                        <div id="ollamaStatus">
+                            <span class="hint">Chargement du statut...</span>
+                        </div>
+                        <div id="ollamaAction">
+                            <!-- Button dynamically added -->
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Modules -->
@@ -698,8 +710,64 @@
             if (e.key === 'Enter') sendChat();
         });
 
+        // --- Ollama Logic ---
+        function checkOllamaStatus() {
+            const statusEl = document.getElementById('ollamaStatus');
+            const actionEl = document.getElementById('ollamaAction');
+
+            fetch('/api/ollama/status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "installed") {
+                        statusEl.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Ollama Installé</span><br><span class="hint">${data.version}</span>`;
+                        actionEl.innerHTML = '';
+                    } else if (data.status === "not_installed") {
+                        statusEl.innerHTML = `<span style="color: var(--text-muted);">Non détecté</span>`;
+                        actionEl.innerHTML = `<button type="button" class="btn-primary btn-small" id="btnInstallOllama" onclick="installOllama()">Installer</button>`;
+                    } else {
+                        statusEl.innerHTML = `<span style="color: var(--danger);">Erreur : ${data.message || 'Inconnue'}</span>`;
+                        actionEl.innerHTML = `<button type="button" class="btn-primary btn-small" onclick="installOllama()">Réessayer</button>`;
+                    }
+                });
+        }
+
+        function installOllama() {
+            const statusEl = document.getElementById('ollamaStatus');
+            const actionEl = document.getElementById('ollamaAction');
+
+            if (!confirm("Voulez-vous lancer l'installation d'Ollama ? Cela peut prendre quelques minutes.")) return;
+
+            statusEl.innerHTML = `<div class="loading-spinner"></div> <span class="hint">Installation en cours...</span>`;
+            actionEl.innerHTML = '';
+
+            fetch('/api/ollama/install', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "started") {
+                        const notif = document.getElementById('notification');
+                        notif.innerHTML = "Installation d'Ollama lancée en arrière-plan";
+                        notif.style.background = "var(--accent)";
+                        notif.classList.add('show');
+                        setTimeout(() => notif.classList.remove('show'), 3000);
+                        
+                        // Re-check every 30s
+                        const interval = setInterval(() => {
+                            fetch('/api/ollama/status')
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.status === "installed") {
+                                        checkOllamaStatus();
+                                        clearInterval(interval);
+                                    }
+                                });
+                        }, 30000);
+                    }
+                });
+        }
+
         // Initial load
         loadBTStatus();
+        checkOllamaStatus();
     </script>
 </body>
 </html>

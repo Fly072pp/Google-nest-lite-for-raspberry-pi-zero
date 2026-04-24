@@ -6,6 +6,8 @@ import secrets
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import bluetooth_manager
+import subprocess
+import threading
 
 CONFIG_FILE = "config.json"
 
@@ -168,6 +170,36 @@ def bt_remove():
     
     bt.remove(mac)
     return jsonify({"status": "success"})
+
+# --- Ollama API ---
+
+@app.route("/api/ollama/status", methods=["GET"])
+def ollama_status():
+    try:
+        # Check if ollama is installed and running
+        result = subprocess.run(["ollama", "--version"], capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            return jsonify({"status": "installed", "version": result.stdout.strip()})
+        else:
+            return jsonify({"status": "error", "message": result.stderr})
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return jsonify({"status": "not_installed"})
+
+@app.route("/api/ollama/install", methods=["POST"])
+def ollama_install():
+    def run_install():
+        try:
+            # Install Ollama using the official script
+            # We use bash -c to handle the pipe
+            subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True, check=True)
+            # Pull a lightweight model by default to make it ready
+            subprocess.run(["ollama", "pull", "smollm2:135m"], check=True)
+        except Exception as e:
+            logging.error(f"Ollama installation failed: {e}")
+
+    thread = threading.Thread(target=run_install)
+    thread.start()
+    return jsonify({"status": "started"})
 
 # --- Chat API ---
 

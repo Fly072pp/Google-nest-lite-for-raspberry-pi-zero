@@ -13,13 +13,7 @@ openwakeword>=0.6.0         # pip install openwakeword
 # Speech-to-Text
 faster-whisper>=1.0.0       # pip install faster-whisper
 
-# LLM local (mode "local") — SmolLM2 135M Q8 (~150 MB RAM)
-# Note : compilez avec BLAS pour de meilleures performances sur ARM
-# CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS" pip install llama-cpp-python
-llama-cpp-python>=0.2.80
-# Modèle : https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF
-
-# LLM via API (mode "api") — optionnel
+# LLM via API (mode "api")
 openai>=1.0.0
 
 # TTS
