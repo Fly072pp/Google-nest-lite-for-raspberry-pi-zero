@@ -22,9 +22,13 @@ class BluetoothManager:
     def discover(self, duration=10):
         """Scans for nearby devices."""
         log.info(f"Scanning for Bluetooth devices for {duration}s...")
+        self._run_command("power on")
         try:
             # We use pexpect to start scan, wait, and then list devices
             child = pexpect.spawn("bluetoothctl", encoding='utf-8', timeout=duration + 5)
+            child.sendline("power on")
+            child.sendline("agent on")
+            child.sendline("default-agent")
             child.sendline("scan on")
             time.sleep(duration)
             child.sendline("scan off")

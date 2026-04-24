@@ -249,6 +249,7 @@ class RadioManager:
     def __init__(self):
         self._process = None
 
+
     def play(self, url: str):
         self.stop()
         log.info(f"📻 Lancement radio : {url}")
