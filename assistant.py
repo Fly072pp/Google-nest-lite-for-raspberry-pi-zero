@@ -451,12 +451,30 @@ class WakeWordDetector:
 
     def __init__(self, audio: AudioManager):
         from openwakeword.model import Model
+        import openwakeword.utils
+
+        # S'assurer que les modèles sont téléchargés (requis pour openwakeword >= 0.6.0)
+        try:
+            log.info("Vérification des modèles openWakeWord...")
+            openwakeword.utils.download_models()
+        except Exception as e:
+            log.warning(f"Erreur lors du téléchargement automatique des modèles : {e}")
+
         # Les modèles intégrés sont téléchargés automatiquement au premier lancement
         # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
-        self._model = Model(
-            wakeword_models=[cfg.WAKE_WORD.lower()],
-            inference_framework="onnx",
-        )
+        try:
+            self._model = Model(
+                wakeword_models=[cfg.WAKE_WORD.lower()],
+                inference_framework="onnx",
+            )
+        except Exception as e:
+            log.error(f"Erreur lors de l'initialisation d'openWakeWord : {e}")
+            log.info("Tentative de chargement du modèle par défaut 'hey_google'...")
+            self._model = Model(
+                wakeword_models=["hey_google"],
+                inference_framework="onnx",
+            )
+        
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
         log.info(
@@ -589,23 +607,28 @@ class LLMEngine:
 
     def _init_local(self):
         if not Path(cfg.LLM_MODEL_PATH).exists():
-            raise FileNotFoundError(
-                f"Modèle LLM introuvable : {cfg.LLM_MODEL_PATH}\n"
-                "Téléchargez un modèle GGUF et mettez à jour LLM_MODEL_PATH."
-            )
+            log.warning(f"⚠️ Modèle LLM local introuvable : {cfg.LLM_MODEL_PATH}")
+            self._llm = None
+            self._mode = "none"
+            return
         log.info("Chargement du LLM local : %s", cfg.LLM_MODEL_PATH)
-        from llama_cpp import Llama
-        self._llm = Llama(
-            model_path=cfg.LLM_MODEL_PATH,
-            n_ctx=cfg.LLM_N_CTX,
-            n_threads=cfg.LLM_N_THREADS,
-            n_gpu_layers=cfg.LLM_N_GPU_LAYERS,
-            verbose=False,
-            use_mlock=False,   # ne pas verrouiller la RAM (important avec 512 MB)
-            use_mmap=True,     # mapping mémoire pour réduire l'empreinte
-        )
-        log.info("LLM local prêt.")
-        self._mode = "local"
+        try:
+            from llama_cpp import Llama
+            self._llm = Llama(
+                model_path=cfg.LLM_MODEL_PATH,
+                n_ctx=cfg.LLM_N_CTX,
+                n_threads=cfg.LLM_N_THREADS,
+                n_gpu_layers=cfg.LLM_N_GPU_LAYERS,
+                verbose=False,
+                use_mlock=False,   # ne pas verrouiller la RAM (important avec 512 MB)
+                use_mmap=True,     # mapping mémoire pour réduire l'empreinte
+            )
+            log.info("LLM local prêt.")
+            self._mode = "local"
+        except ImportError:
+            log.error("❌ llama-cpp-python n'est pas installé. Lancez install.sh d'abord.")
+            self._llm = None
+            self._mode = "none"
 
     def _init_api(self):
         log.info("Mode LLM API : %s → %s", cfg.LLM_API_BASE, cfg.LLM_API_MODEL)
@@ -629,8 +652,10 @@ class LLMEngine:
 
         if self._mode == "local":
             response = self._generate_local(messages)
-        else:
+        elif self._mode == "api":
             response = self._generate_api(messages)
+        else:
+            return "Désolé, l'intelligence artificielle n'est pas configurée ou installée."
 
         # Mise à jour de l'historique
         self._history.append({"role": "user", "content": user_text})
@@ -638,6 +663,9 @@ class LLMEngine:
 
         log.info("🤖 Réponse : « %s »", response)
         return response
+
+    def is_ready(self) -> bool:
+        return self._mode != "none"
 
     def _generate_local(self, messages: list) -> str:
         output = self._llm.create_chat_completion(
@@ -749,6 +777,11 @@ class VoiceAssistant:
         self.tts = TTSEngine()          # chargé en premier (léger)
         self.stt = WhisperTranscriber() # ~60-80 MB
         self.llm = LLMEngine()          # ~150-300 MB selon le modèle
+        
+        if not self.llm.is_ready() and cfg.LLM_MODE == "local":
+            log.error("❌ L'IA (LLM) n'est pas installée ou le modèle est manquant.")
+            self.tts.speak("Attention, l'intelligence artificielle n'est pas encore installée. Je fonctionnerai uniquement avec les commandes de base.")
+        
         self.wake = WakeWordDetector(self.audio)  # ~5 MB
 
         if getattr(cfg, "SOMFY_PIN", "") and getattr(cfg, "SOMFY_TOKEN", ""):
