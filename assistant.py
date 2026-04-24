@@ -402,40 +402,102 @@ class AudioManager:
     def __init__(self):
         self._pa = pyaudio.PyAudio()
         self._input_device = self._find_input_device()
+        self._working_rate = self._find_working_rate(self._input_device)
         self._output_device = self._find_output_device()
         log.info(
-            "Périphérique entrée : %s | sortie : %s",
+            "Périphérique entrée : %s (Rate: %d Hz) | sortie : %s",
             self._input_device,
+            self._working_rate,
             self._output_device,
         )
 
     def _find_input_device(self) -> Optional[int]:
-        """Retourne l'index du premier périphérique d'entrée disponible."""
-        for i in range(self._pa.get_device_count()):
-            info = self._pa.get_device_info_by_index(i)
-            if info["maxInputChannels"] > 0:
-                return i
+        """Retourne l'index du périphérique d'entrée."""
+        try:
+            default_info = self._pa.get_default_input_device_info()
+            return default_info["index"]
+        except Exception:
+            for i in range(self._pa.get_device_count()):
+                if self._pa.get_device_info_by_index(i)["maxInputChannels"] > 0:
+                    return i
         return None
 
+    def _find_working_rate(self, device_index) -> int:
+        """Trouve un taux d'échantillonnage supporté par le périphérique."""
+        for rate in [16000, 44100, 48000, 22050, 32000, 8000]:
+            if self._is_rate_supported(rate, device_index):
+                return rate
+        return 16000  # Fallback théorique
+
+    def _is_rate_supported(self, rate, device_index):
+        try:
+            return self._pa.is_format_supported(
+                rate=rate,
+                input_device=device_index,
+                input_channels=cfg.CHANNELS,
+                input_format=cfg.FORMAT
+            )
+        except Exception:
+            return False
+
     def _find_output_device(self) -> Optional[int]:
-        for i in range(self._pa.get_device_count()):
-            info = self._pa.get_device_info_by_index(i)
-            if info["maxOutputChannels"] > 0:
-                return i
+        try:
+            return self._pa.get_default_output_device_info()["index"]
+        except Exception:
+            for i in range(self._pa.get_device_count()):
+                info = self._pa.get_device_info_by_index(i)
+                if info["maxOutputChannels"] > 0:
+                    return i
         return None
 
     def open_input_stream(self, frames_per_buffer: int = cfg.CHUNK_SIZE):
-        return self._pa.open(
-            rate=cfg.SAMPLE_RATE,
+        # On ouvre le flux au taux supporté par le matériel
+        stream = self._pa.open(
+            rate=self._working_rate,
             channels=cfg.CHANNELS,
             format=cfg.FORMAT,
             input=True,
             input_device_index=self._input_device,
-            frames_per_buffer=frames_per_buffer,
+            frames_per_buffer=int(frames_per_buffer * self._working_rate / cfg.SAMPLE_RATE),
         )
+        
+        # Si le taux n'est pas 16000, on wrappe le flux pour resampler à la volée
+        if self._working_rate != cfg.SAMPLE_RATE:
+            log.info(f"Resampling actif : {self._working_rate}Hz -> {cfg.SAMPLE_RATE}Hz")
+            return ResamplingAudioStream(stream, self._working_rate, cfg.SAMPLE_RATE)
+        return stream
 
     def terminate(self):
         self._pa.terminate()
+
+
+class ResamplingAudioStream:
+    """Wrapper pour simuler un flux à 16000 Hz à partir d'un autre taux."""
+    def __init__(self, stream, source_rate, target_rate):
+        self.stream = stream
+        self.source_rate = source_rate
+        self.target_rate = target_rate
+
+    def read(self, num_frames, exception_on_overflow=False):
+        # Pour obtenir num_frames à 16000Hz, on doit lire plus de données à 44100Hz
+        num_to_read = int(num_frames * self.source_rate / self.target_rate)
+        data = self.stream.read(num_to_read, exception_on_overflow)
+        
+        # Conversion vers numpy pour le resampling
+        audio_data = np.frombuffer(data, dtype=np.int16)
+        
+        # Resampling linéaire simple
+        x_source = np.arange(len(audio_data))
+        x_target = np.linspace(0, len(audio_data) - 1, num_frames)
+        resampled_data = np.interp(x_target, x_source, audio_data).astype(np.int16)
+        
+        return resampled_data.tobytes()
+
+    def stop_stream(self):
+        self.stream.stop_stream()
+
+    def close(self):
+        self.stream.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
