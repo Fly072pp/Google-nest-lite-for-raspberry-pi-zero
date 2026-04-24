@@ -46,8 +46,6 @@ pip install onnxruntime
 # Installer openwakeword sans dépendances pour éviter l'erreur tflite-runtime
 pip install openwakeword --no-deps
 
-pip install tflite-runtime
-
 pip install -r requirements.txt
 
 # ── 4) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
