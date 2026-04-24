@@ -22,27 +22,21 @@ class BluetoothManager:
     def discover(self, duration=10):
         """Scans for nearby devices."""
         log.info(f"Scanning for Bluetooth devices for {duration}s...")
+        # On s'assure que le Bluetooth est activé
         self._run_command("power on")
+        
         try:
-            # We use pexpect to start scan, wait, and then list devices
-            child = pexpect.spawn("bluetoothctl", encoding='utf-8', timeout=duration + 5)
-            child.sendline("power on")
-            child.sendline("agent on")
-            child.sendline("default-agent")
-            child.sendline("scan on")
+            # On lance le scan en arrière-plan
+            scan_proc = subprocess.Popen(["bluetoothctl", "scan", "on"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             time.sleep(duration)
-            child.sendline("scan off")
-            child.sendline("devices")
-            child.expect("devices")
-            output = child.before + child.after
+            # On arrête le scan
+            subprocess.run(["bluetoothctl", "scan", "off"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            scan_proc.terminate()
+            scan_proc.wait(timeout=2)
+        except Exception as e:
+            log.warning(f"Scan interrupted or failed: {e}")
             
-            # Now actually get the list of devices properly
-            child.sendline("devices")
-            child.expect(pexpect.EOF, timeout=2) # Flush
-        except:
-            pass
-            
-        # Re-run a clean 'devices' command to get current cache
+        # On récupère la liste des périphériques découverts (cache)
         output = self._run_command("devices")
         
         devices = []
