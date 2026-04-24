@@ -5,6 +5,8 @@
 # Audio
 pyaudio>=0.2.14
 numpy>=1.26.0
+scipy>=1.10.0
+tqdm>=4.66.0
 
 # Détection du mot d'éveil (Géré manuellement dans install.sh)
 
