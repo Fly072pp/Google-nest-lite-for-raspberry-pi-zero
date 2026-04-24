@@ -58,9 +58,9 @@ class Config:
 
     # ── Wake word (openWakeWord — 100% gratuit, aucune clé requise) ────────
     # Mots disponibles nativement : "hey_jarvis", "alexa", "hey_mycroft",
-    #   "hey_rhasspy", "ok_nabu", "hey_google" (via modèle ONNX intégré)
+    #   "hey_rhasspy", "ok_nabu". ("hey_google" nécessite un téléchargement manuel)
     # Sensibilité [0.0 – 1.0] : plus élevée = plus de faux positifs
-    WAKE_WORD: str = "hey_google"
+    WAKE_WORD: str = "alexa"
     WAKE_WORD_THRESHOLD: float = 0.5
 
     # ── STT (Faster-Whisper) ───────────────────────────────────────────────
@@ -454,7 +454,7 @@ class WakeWordDetector:
         # Les modèles intégrés sont téléchargés automatiquement au premier lancement
         # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
         self._model = Model(
-            wakeword_models=[cfg.WAKE_WORD]
+            wakeword_models=[cfg.WAKE_WORD.lower()]
         )
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
