@@ -22,7 +22,7 @@ sudo apt-get install -y \
     python3-pip python3-venv python3-dev \
     portaudio19-dev libsndfile1 \
     espeak-ng espeak-ng-data \
-    alsa-utils sox bluez bluez-tools bluealsa \
+    alsa-utils sox bluez bluez-tools bluez-alsa-utils \
     git wget curl cmake \
     libopenblas-dev          # accélération BLAS pour llama-cpp
 
