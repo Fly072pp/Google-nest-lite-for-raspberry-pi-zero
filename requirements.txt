@@ -6,9 +6,7 @@
 pyaudio>=0.2.14
 numpy>=1.26.0
 
-# Détection du mot d'éveil (100% gratuit, aucune clé API)
-openwakeword>=0.6.0         # pip install openwakeword
-# Modèles ONNX téléchargés automatiquement au premier import
+# Détection du mot d'éveil (Géré manuellement dans install.sh)
 
 # Speech-to-Text
 faster-whisper>=1.0.0       # pip install faster-whisper

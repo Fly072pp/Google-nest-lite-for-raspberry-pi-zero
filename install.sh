@@ -40,6 +40,12 @@ pip install --upgrade pip wheel
 
 # ── 3) Bibliothèques Python ────────────────────────────────────────────────
 echo "[3/6] Installation des bibliothèques Python (requirements.txt)…"
+
+# Fix pour Raspberry Pi : onnxruntime est plus stable que tflite-runtime sur ARM
+pip install onnxruntime
+# Installer openwakeword sans dépendances pour éviter l'erreur tflite-runtime
+pip install openwakeword --no-deps
+
 pip install -r requirements.txt
 
 # ── 4) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
