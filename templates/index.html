@@ -518,10 +518,25 @@
                 </div>
             </div>
 
+            <!-- Système -->
+            <div class="card">
+                <h2>⚙️ Système</h2>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
+                        <div>
+                            <span style="font-weight: 600;">Mise à jour logicielle</span><br>
+                            <span class="hint" id="updateStatus">Vérifiez les dernières nouveautés sur GitHub.</span>
+                        </div>
+                        <button type="button" class="btn-primary btn-small" id="btnUpdate">Mettre à jour</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="btn-container">
                 <button type="button" class="btn-danger" id="btnRestart">Redémarrer l'assistant</button>
-                <button type="submit" class="btn-primary">Sauvegarder</button>
+                <button type="submit" class="btn-primary">Sauvegarder la configuration</button>
             </div>
+
         </form>
     </div>
 
@@ -822,9 +837,52 @@
                 });
         }
 
+        function systemUpdate() {
+            const btn = document.getElementById('btnUpdate');
+            const statusEl = document.getElementById('updateStatus');
+            const notif = document.getElementById('notification');
+
+            if (!confirm("Voulez-vous mettre à jour l'assistant ? Cela va télécharger les derniers changements depuis GitHub.")) return;
+
+            btn.disabled = true;
+            btn.innerHTML = `<div class="loading-spinner"></div> Mise à jour...`;
+            statusEl.innerHTML = "Téléchargement des fichiers...";
+
+            fetch('/api/system/update', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = `Mettre à jour`;
+                    
+                    if (data.status === "success") {
+                        statusEl.innerHTML = `<span style="color: var(--success);">✅ Mise à jour réussie !</span>`;
+                        notif.innerHTML = "Mise à jour terminée. Redémarrage...";
+                        notif.style.background = "var(--success)";
+                        notif.classList.add('show');
+                        setTimeout(() => {
+                            fetch('/api/restart', { method: 'POST' });
+                            setTimeout(() => window.location.reload(), 5000);
+                        }, 2000);
+                    } else if (data.status === "up_to_date") {
+                        statusEl.innerHTML = `<span style="color: var(--text-muted);">Vous utilisez déjà la dernière version.</span>`;
+                    } else {
+                        statusEl.innerHTML = `<span style="color: var(--danger);">Erreur : ${data.message}</span>`;
+                        alert("Erreur lors de la mise à jour : " + data.message);
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = `Mettre à jour`;
+                    statusEl.innerHTML = `<span style="color: var(--danger);">Erreur réseau</span>`;
+                });
+        }
+
+        document.getElementById('btnUpdate').addEventListener('click', systemUpdate);
+
         // Initial load
         loadBTStatus();
         checkOllamaStatus();
     </script>
+
 </body>
 </html>

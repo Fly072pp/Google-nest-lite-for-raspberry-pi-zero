@@ -16,23 +16,38 @@ log.setLevel(logging.ERROR)
 
 bt = bluetooth_manager.BluetoothManager()
 active_assistant = None
+default_config = {}
 
 def set_assistant(assistant):
     global active_assistant
     active_assistant = assistant
+
+def set_config(config_obj):
+    """Importe les réglages par défaut depuis la classe Config d'assistant.py"""
+    global default_config
+    for key in dir(config_obj):
+        if not key.startswith("_"):
+            val = getattr(config_obj, key)
+            if not callable(val):
+                default_config[key] = val
 
 app = Flask(__name__)
 # Generate a random secret key for sessions
 app.secret_key = secrets.token_hex(32)
 
 def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        return {}
-    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-        try:
-            return json.load(f)
-        except Exception:
-            return {}
+    config = {}
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            try:
+                config = json.load(f)
+            except Exception:
+                pass
+    
+    # On fusionne : le fichier config.json a la priorité sur les défauts d'assistant.py
+    full_config = default_config.copy()
+    full_config.update(config)
+    return full_config
 
 def save_config(data):
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -124,7 +139,25 @@ def restart_app():
     threading.Thread(target=delay_exit).start()
     return jsonify({"status": "restarting"})
 
+@app.route("/api/system/update", methods=["POST"])
+def system_update():
+    try:
+        # On tente de récupérer les dernières modifs sans écraser les fichiers locaux si possible
+        # Mais git pull échouera s'il y a des conflits.
+        log.info("Tentative de mise à jour via Git...")
+        result = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            if "Already up to date" in result.stdout:
+                return jsonify({"status": "up_to_date", "message": "Déjà à jour."})
+            return jsonify({"status": "success", "message": "Mise à jour effectuée. Redémarrage nécessaire."})
+        else:
+            # Si erreur, on tente un fetch pour voir s'il y a vraiment des trucs
+            return jsonify({"status": "error", "message": result.stderr})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 # --- Bluetooth API ---
+
 
 @app.route("/api/bluetooth/discover", methods=["GET"])
 def bt_discover():

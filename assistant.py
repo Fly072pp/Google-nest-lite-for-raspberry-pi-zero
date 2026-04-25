@@ -718,7 +718,8 @@ class LLMEngine:
         elif self._mode == "api":
             response = self._generate_api(messages)
         else:
-            return "Désolé, l'intelligence artificielle n'est pas configurée ou installée."
+            return "Désolé, mon intelligence artificielle n'est pas encore installée ou configurée."
+
 
         # Mise à jour de l'historique
         self._history.append({"role": "user", "content": user_text})
@@ -879,13 +880,13 @@ class VoiceAssistant:
 
         # 2) LLM
         try:
-            # On ne dit "Un instant" que si c'est une requête vocale (détectée par l'absence d'un flag ?)
-            # Pour simplifier, on le laisse ou on l'enlève.
             response = self.llm.generate(text)
             return response
         except Exception as e:
             log.error("Erreur LLM : %s", e)
-            return "Désolé, je n'ai pas pu générer de réponse."
+            # Message plus naturel si l'IA échoue
+            return "Désolé, je n'ai pas compris ce que vous avez dit."
+
 
     def run(self):
         """Boucle principale : écoute → transcription → LLM → TTS."""
@@ -1090,11 +1091,13 @@ if __name__ == "__main__":
 
     assistant = VoiceAssistant()
     
-    # Enregistrement de l'assistant auprès du serveur web
+    # Enregistrement de l'assistant et de sa config auprès du serveur web
     try:
         import web_admin
         web_admin.set_assistant(assistant)
+        web_admin.set_config(cfg)
     except Exception:
         pass
+
 
     assistant.run()

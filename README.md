@@ -19,6 +19,8 @@ Assistant vocal autonome fonctionnant entièrement en local. **100% gratuit, auc
 | TTS | **piper-tts** / pyttsx3 | MIT — gratuit |
 | Audio | **PyAudio** | MIT — gratuit |
 | Radio | **VLC (cvlc)** | GPL — gratuit |
+| Bluetooth | **bluetoothctl** + pexpect | MIT — gratuit |
+| Chromecast | **PyChromecast** | MIT — gratuit |
 
 ## 📋 Prérequis matériels
 
@@ -76,7 +78,7 @@ L'assistant intègre une magnifique interface de configuration web. Lancez l'ass
 
 > *Lors de votre toute première connexion, il vous sera demandé de créer un nom d'utilisateur et un mot de passe pour sécuriser l'accès à ce panneau. Personne ne pourra reconfigurer votre maison sans ces identifiants !*
 
-Vous pourrez y configurer le mot d'éveil, l'IA, les stations de **Radio** et vos identifiants Somfy TaHoma en quelques clics !
+Vous pourrez y configurer le mot d'éveil, l'IA, les stations de **Radio**, vos enceintes **Bluetooth**, vos cibles **Chromecast** et vos identifiants Somfy TaHoma en quelques clics !
 
 ### Manuelle
 ```bash
@@ -115,6 +117,8 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `arrête la radio / musique` | Stoppe la lecture en cours |
 | `mets un minuteur de [X] min` | Lance un minuteur en arrière-plan |
 | `réveille-moi à [H] heures [M]` | Programme une alarme ponctuelle |
+| `allume mon PC` | Envoie un paquet Wake on LAN (configuré) |
+| `lance YouTube sur la télé` | Lance une application sur Chromecast |
 
 ## 🔧 Configuration avancée (`assistant.py` → classe `Config`)
 
@@ -130,6 +134,8 @@ sudo journalctl -u voice-assistant -f    # logs en temps réel
 | `ENABLE_TIMERS` | `true` | Active/Désactive les minuteurs/alarmes |
 | `RADIO_STATIONS` | *(JSON)* | Liste des flux radio (Nom: URL) |
 | `RECORD_SILENCE_THRESHOLD` | `0.015` | Sensibilité détection silence |
+| `ENABLE_CHROMECAST` | `false` | Active/Désactive le support Chromecast |
+| `ENABLE_WOL` | `false` | Active/Désactive le support Wake on LAN |
 
 ### 🏠 Intégration Somfy TaHoma (Mode Développeur Local)
 Pour contrôler vos équipements Somfy en 100% local sans cloud, activez le **Mode Développeur** depuis l'application TaHoma pour obtenir un token.
@@ -179,3 +185,9 @@ Passez en mode API (`--llm-mode api`) ou réduisez `LLM_MAX_TOKENS`.
 ```bash
 sudo usermod -aG audio $USER && newgrp audio
 ```
+
+**Bluetooth ne trouve aucun appareil :**
+Assurez-vous que votre enceinte est en **mode appairage**. Sur le Pi, vérifiez le statut avec `systemctl status bluetooth`. Le nouveau système d'administration web gère l'appairage interactif automatiquement.
+
+**Chromecast non détecté :**
+Le Pi et le Chromecast doivent être sur le **même réseau Wi-Fi**. Si vous avez plusieurs interfaces, spécifiez l'IP de votre Chromecast dans le panneau web.
