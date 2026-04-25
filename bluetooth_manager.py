@@ -131,7 +131,6 @@ class BluetoothManager:
             child.sendline(f"pair {mac}")
             
             # Handle various interactive prompts
-            # 0: Success, 1: Confirm passkey, 2: PIN, 3: Failed, 4: Already paired
             index = child.expect([
                 "Pairing successful", 
                 "Confirm passkey", 
@@ -150,9 +149,13 @@ class BluetoothManager:
                 child.sendline("0000")
                 child.expect("Pairing successful", timeout=10)
             elif index == 3:
-                log.error(f"Pairing failed for {mac}")
+                msg = "Pairing failed (check device state)"
+                log.error(f"{msg} for {mac}")
                 child.sendline("quit")
-                return False
+                return False, msg
+            elif index == 5:
+                msg = "Pairing timeout"
+                return False, msg
             
             # Connect
             log.info(f"Connecting to {mac}...")
@@ -160,21 +163,24 @@ class BluetoothManager:
             res = child.expect(["Connection successful", "Failed to connect", pexpect.TIMEOUT], timeout=15)
             
             if res == 0:
-                # Tentative de basculement automatique de la sortie audio (PulseAudio/PipeWire)
+                # Tentative de basculement automatique de la sortie audio
                 log.info(f"Setting {mac} as default audio sink...")
                 sink_name = f"bluez_sink.{mac.replace(':', '_')}.a2dp_sink"
                 subprocess.run(["pactl", "set-default-sink", sink_name], capture_output=True)
-                # Alternative pour PipeWire (Bookworm)
                 subprocess.run(["wpctl", "set-default", sink_name], capture_output=True)
-
-            child.sendline("quit")
-            child.close()
-            
-            return res == 0
+                child.sendline("quit")
+                child.close()
+                return True, "Connected"
+            else:
+                msg = "Connection failed" if res == 1 else "Connection timeout"
+                child.sendline("quit")
+                child.close()
+                return False, msg
 
         except Exception as e:
-            log.error(f"Connection error for {mac}: {e}")
-            return False
+            msg = str(e)
+            log.error(f"Connection error for {mac}: {msg}")
+            return False, msg
 
     def disconnect(self, mac):
         """Disconnects a device."""

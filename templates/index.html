@@ -451,14 +451,32 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.4);
             z-index: 1000;
             display: flex;
-            align-items: center;
-            gap: 12px;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 300px;
             transform: translateX(200%);
             transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
         #notification.show {
             transform: translateX(0);
+        }
+
+        .notif-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .notif-details {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: rgba(0,0,0,0.2);
+            padding: 8px;
+            border-radius: 8px;
+            margin-top: 8px;
+            display: none;
+            word-break: break-all;
         }
 
         .notif-icon {
@@ -726,8 +744,12 @@
 
     <!-- Notification system -->
     <div id="notification">
-        <div class="notif-icon" id="notifIcon"><i data-lucide="check"></i></div>
-        <span id="notifMessage">Message</span>
+        <div class="notif-main">
+            <div class="notif-icon" id="notifIcon"><i data-lucide="check"></i></div>
+            <span id="notifMessage">Message</span>
+            <button type="button" id="btnNotifDetails" class="btn btn-ghost btn-sm hidden" style="margin-left: auto;">+</button>
+        </div>
+        <div id="notifDetailsArea" class="notif-details"></div>
     </div>
 
     <script>
@@ -875,20 +897,31 @@
                     notify("Action réussie", "success");
                     refreshBT();
                 } else {
-                    notify("Échec de l'action", "danger");
+                    notify("Échec de l'action", "danger", data.message || data.error || "Erreur inconnue");
                 }
             } catch (e) {
-                notify("Erreur réseau", "danger");
+                notify("Erreur réseau", "danger", e.message);
             }
         }
 
         // --- Notifications ---
-        function notify(msg, type = "success") {
+        let notifTimeout;
+        function notify(msg, type = "success", details = "") {
             const el = document.getElementById('notification');
-            const icon = document.getElementById('notifIcon');
             const message = document.getElementById('notifMessage');
+            const detailsBtn = document.getElementById('btnNotifDetails');
+            const detailsArea = document.getElementById('notifDetailsArea');
 
             message.textContent = msg;
+            detailsArea.textContent = details;
+            detailsArea.style.display = 'none';
+            
+            if (details) {
+                detailsBtn.classList.remove('hidden');
+            } else {
+                detailsBtn.classList.add('hidden');
+            }
+
             el.className = '';
             el.classList.add('show');
             
@@ -896,8 +929,18 @@
             else if (type === "primary") el.style.borderLeft = "4px solid var(--primary)";
             else el.style.borderLeft = "4px solid var(--success)";
 
-            setTimeout(() => el.classList.remove('show'), 4000);
+            clearTimeout(notifTimeout);
+            notifTimeout = setTimeout(() => {
+                if (detailsArea.style.display !== 'block') {
+                    el.classList.remove('show');
+                }
+            }, 5000);
         }
+
+        document.getElementById('btnNotifDetails').addEventListener('click', () => {
+            const area = document.getElementById('notifDetailsArea');
+            area.style.display = area.style.display === 'block' ? 'none' : 'block';
+        });
 
         // --- Chat ---
         const chatHistory = document.getElementById('chatHistory');

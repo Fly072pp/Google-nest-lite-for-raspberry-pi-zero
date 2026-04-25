@@ -135,7 +135,12 @@ def restart_app():
     def delay_exit():
         import time
         time.sleep(1)
-        os.kill(os.getpid(), signal.SIGTERM)
+        # Attempt systemd restart if running as service
+        try:
+            subprocess.run(["sudo", "systemctl", "restart", "voice-assistant"], check=True)
+        except:
+            # Fallback to kill if systemctl fails. SIGKILL ensures systemd sees it as a failure to restart.
+            os.kill(os.getpid(), signal.SIGKILL)
     threading.Thread(target=delay_exit).start()
     return jsonify({"status": "restarting"})
 
@@ -145,6 +150,8 @@ def system_update():
         # On tente de récupérer les dernières modifs sans écraser les fichiers locaux si possible
         # Mais git pull échouera s'il y a des conflits.
         log.info("Tentative de mise à jour via Git...")
+        # Stash local changes to avoid pull conflicts
+        subprocess.run(["git", "stash"], capture_output=True)
         result = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
         if result.returncode == 0:
             if "Already up to date" in result.stdout:
@@ -191,8 +198,11 @@ def bt_connect():
     if not mac:
         return jsonify({"error": "MAC address required"}), 400
     
-    success = bt.connect(mac)
-    return jsonify({"status": "success" if success else "failed"})
+    success, message = bt.connect(mac)
+    return jsonify({
+        "status": "success" if success else "failed",
+        "message": message
+    })
 
 @app.route("/api/bluetooth/disconnect", methods=["POST"])
 def bt_disconnect():
