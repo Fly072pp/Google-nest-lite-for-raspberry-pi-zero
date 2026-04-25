@@ -151,10 +151,19 @@ class BluetoothManager:
             child.sendline(f"connect {mac}")
             res = child.expect(["Connection successful", "Failed to connect", pexpect.TIMEOUT], timeout=15)
             
+            if res == 0:
+                # Tentative de basculement automatique de la sortie audio (PulseAudio/PipeWire)
+                log.info(f"Setting {mac} as default audio sink...")
+                sink_name = f"bluez_sink.{mac.replace(':', '_')}.a2dp_sink"
+                subprocess.run(["pactl", "set-default-sink", sink_name], capture_output=True)
+                # Alternative pour PipeWire (Bookworm)
+                subprocess.run(["wpctl", "set-default", sink_name], capture_output=True)
+
             child.sendline("quit")
             child.close()
             
             return res == 0
+
         except Exception as e:
             log.error(f"Connection error for {mac}: {e}")
             return False
