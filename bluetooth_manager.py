@@ -78,8 +78,8 @@ class BluetoothManager:
         return [{"mac": m, "name": n} for m, n in devices.items() if n]
 
     def get_paired_devices(self):
-        """Returns list of paired devices with full status info."""
-        output = self._run_command("paired-devices")
+        """Returns list of all known devices (paired or trusted) from bluetoothctl."""
+        output = self._run_command("devices")
         devices = []
         for line in output.splitlines():
             match = re.search(r"Device\s+(([0-9A-F]{2}:?){6})\s+(.*)", line, re.I)
@@ -87,13 +87,15 @@ class BluetoothManager:
                 mac = match.group(1)
                 name = match.group(3).strip()
                 info = self.get_info(mac)
-                devices.append({
-                    "mac": mac,
-                    "name": name,
-                    "connected": info["connected"],
-                    "paired": info["paired"],
-                    "trusted": info["trusted"]
-                })
+                # Only include if actually paired or trusted
+                if info["paired"] or info["trusted"]:
+                    devices.append({
+                        "mac": mac,
+                        "name": name,
+                        "connected": info["connected"],
+                        "paired": info["paired"],
+                        "trusted": info["trusted"]
+                    })
         return devices
 
     def get_info(self, mac):
