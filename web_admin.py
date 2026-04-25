@@ -128,18 +128,28 @@ def restart_app():
 
 @app.route("/api/bluetooth/discover", methods=["GET"])
 def bt_discover():
-    devices = bt.discover(duration=5)
-    return jsonify(devices)
+    try:
+        # 10s is better for finding all devices on a Pi
+        devices = bt.discover(duration=10)
+        return jsonify(devices)
+    except Exception as e:
+        logging.error(f"Error in bt_discover: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/bluetooth/status", methods=["GET"])
 def bt_status():
-    status = bt.get_status()
-    # Also include list of paired devices
-    paired = bt.get_paired_devices()
-    return jsonify({
-        "connected": status,
-        "paired": paired
-    })
+    try:
+        status = bt.get_status()
+        # Also include list of paired devices
+        paired = bt.get_paired_devices()
+        return jsonify({
+            "connected": status,
+            "paired": paired
+        })
+    except Exception as e:
+        logging.error(f"Error in bt_status: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/bluetooth/connect", methods=["POST"])
 def bt_connect():

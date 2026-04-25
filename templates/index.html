@@ -617,10 +617,13 @@
             const list = document.getElementById('btDevices');
             btn.disabled = true;
             btn.innerHTML = `<div class="loading-spinner"></div> Scan en cours...`;
-            list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Recherche d'appareils Bluetooth (5s)...</p>`;
+            list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Recherche d'appareils Bluetooth (10s)...</p>`;
 
             fetch('/api/bluetooth/discover')
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) return res.json().then(err => { throw new Error(err.error || 'Erreur serveur'); });
+                    return res.json();
+                })
                 .then(devices => {
                     btn.disabled = false;
                     btn.innerHTML = `Lancer un scan`;
@@ -639,7 +642,7 @@
                                 <span class="device-name">${dev.name || 'Appareil inconnu'}</span>
                                 <span class="device-mac">${dev.mac}</span>
                             </div>
-                            <button type="button" class="btn-primary btn-small" onclick="connectBT('${dev.mac}')">Connecter</button>
+                            <button type="button" class="btn-primary btn-small" id="btn-connect-${dev.mac.replace(/:/g, '')}" onclick="connectBT('${dev.mac}')">Connecter</button>
                         `;
                         list.appendChild(item);
                     });
@@ -647,13 +650,21 @@
                 .catch(err => {
                     btn.disabled = false;
                     btn.innerHTML = `Lancer un scan`;
-                    list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px; color: var(--danger);">Erreur lors du scan.</p>`;
+                    list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px; color: var(--danger);">Erreur : ${err.message}</p>`;
                 });
         }
 
         function connectBT(mac) {
             const notif = document.getElementById('notification');
-            notif.innerHTML = "Tentative de connexion...";
+            const btn = document.getElementById('btn-connect-' + mac.replace(/:/g, ''));
+            const oldBtnText = btn ? btn.innerHTML : "Connecter";
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<div class="loading-spinner" style="width:12px; height:12px; border-width:2px;"></div>`;
+            }
+
+            notif.innerHTML = "Tentative de connexion (Appairage & Agent)...";
             notif.style.background = "var(--accent)";
             notif.classList.add('show');
 
@@ -664,17 +675,32 @@
             })
             .then(res => res.json())
             .then(data => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = oldBtnText;
+                }
+                
                 if (data.status === "success") {
-                    notif.innerHTML = "✅ Connecté !";
+                    notif.innerHTML = "✅ Connecté avec succès !";
                     notif.style.background = "var(--success)";
                     loadBTStatus();
                 } else {
-                    notif.innerHTML = "❌ Échec de la connexion";
+                    notif.innerHTML = "❌ Échec : Vérifiez que l'appareil est en mode appairage";
                     notif.style.background = "var(--danger)";
                 }
+                setTimeout(() => notif.classList.remove('show'), 5000);
+            })
+            .catch(err => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = oldBtnText;
+                }
+                notif.innerHTML = "❌ Erreur réseau ou Bluetooth";
+                notif.style.background = "var(--danger)";
                 setTimeout(() => notif.classList.remove('show'), 3000);
             });
         }
+
 
         function disconnectBT(mac) {
             fetch('/api/bluetooth/disconnect', {
