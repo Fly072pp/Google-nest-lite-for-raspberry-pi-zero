@@ -3,87 +3,193 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuration Edge AI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>Nest Lite | Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --bg-color: #0f172a;
-            --glass-bg: rgba(30, 41, 59, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --bg-deep: #020617;
+            --bg-accent: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-hover: rgba(51, 65, 85, 0.5);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.3);
+            --secondary: #a78bfa;
             --success: #10b981;
             --danger: #ef4444;
+            --warning: #f59e0b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --sidebar-width: 260px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
         }
 
         body {
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
-            background: radial-gradient(circle at top right, #1e1b4b, var(--bg-color));
-            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, rgba(167, 139, 250, 0.08) 0%, transparent 50%);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: 50px;
-            padding-bottom: 50px;
         }
 
-        .container {
-            width: 100%;
-            max-width: 800px;
-            padding: 20px;
+        /* --- Sidebar --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 100;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .header h1 {
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
             font-weight: 700;
-            margin: 0;
-            font-size: 2.5rem;
-            background: -webkit-linear-gradient(45deg, #60a5fa, #a78bfa);
+            margin-bottom: 40px;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .header p {
-            color: var(--text-muted);
-            margin-top: 10px;
+        .nav-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
         }
 
+        .nav-item {
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 12px;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: var(--glass-bg);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            border-left: 3px solid var(--primary);
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        /* --- Main Content --- */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex-grow: 1;
+            padding: 40px;
+            max-width: 1200px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .welcome-msg h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .welcome-msg p {
+            margin: 4px 0 0;
+            color: var(--text-secondary);
+        }
+
+        /* --- Grid System --- */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+        }
+
+        .col-8 { grid-column: span 8; }
+        .col-4 { grid-column: span 4; }
+        .col-12 { grid-column: span 12; }
+
+        @media (max-width: 1024px) {
+            .col-8, .col-4 { grid-column: span 12; }
+        }
+
+        /* --- Cards --- */
         .card {
             background: var(--glass-bg);
             backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s ease;
+            border-radius: 24px;
+            padding: 24px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
         }
 
         .card:hover {
-            transform: translateY(-5px);
+            border-color: rgba(56, 189, 248, 0.3);
+            background: var(--glass-hover);
+            transform: translateY(-2px);
         }
 
-        .card h2 {
-            margin-top: 0;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
-            font-size: 1.5rem;
-            border-bottom: 1px solid var(--glass-border);
-            padding-bottom: 10px;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
+        .card-header i {
+            color: var(--primary);
+        }
+
+        /* --- Forms --- */
         .form-group {
             margin-bottom: 20px;
         }
@@ -91,671 +197,727 @@
         label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
         }
 
-        .hint {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-        }
-
-        input[type="text"], input[type="number"], select {
+        input, select, textarea {
             width: 100%;
-            padding: 12px 15px;
             background: rgba(15, 23, 42, 0.6);
             border: 1px solid var(--glass-border);
-            border-radius: 8px;
+            border-radius: 12px;
+            padding: 12px 16px;
             color: white;
-            font-family: 'Inter', sans-serif;
-            font-size: 1rem;
+            font-family: inherit;
             outline: none;
-            transition: all 0.3s;
-            box-sizing: border-box;
+            transition: var(--transition);
         }
 
         input:focus, select:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--primary-glow);
         }
 
-        .btn-container {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            margin-top: 40px;
-        }
-
-        button {
-            padding: 12px 24px;
-            border-radius: 8px;
-            border: none;
+        /* --- Buttons --- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
             font-weight: 600;
-            font-size: 1rem;
             cursor: pointer;
-            transition: all 0.3s;
-            font-family: 'Inter', sans-serif;
+            transition: var(--transition);
+            border: none;
+            font-family: inherit;
+            font-size: 0.9rem;
         }
 
         .btn-primary {
-            background: var(--accent);
-            color: white;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            background: var(--primary);
+            color: var(--bg-deep);
         }
 
         .btn-primary:hover {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
+            background: white;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-ghost:hover {
+            background: var(--glass-bg);
+            color: var(--text-primary);
         }
 
         .btn-danger {
-            background: transparent;
-            border: 1px solid var(--danger);
+            background: rgba(239, 68, 68, 0.1);
             color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
         }
 
         .btn-danger:hover {
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        /* Notifications */
-        #notification {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            padding: 15px 25px;
-            border-radius: 8px;
-            background: var(--success);
+            background: var(--danger);
             color: white;
-            font-weight: 600;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
-        #notification.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        /* Bluetooth specific */
-        .device-list {
-            margin-top: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .device-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 15px;
-            background: rgba(15, 23, 42, 0.4);
-            border: 1px solid var(--glass-border);
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
             border-radius: 8px;
-            transition: all 0.3s;
         }
 
-        .device-item:hover {
-            background: rgba(15, 23, 42, 0.6);
-        }
-
-        .device-info {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .device-name {
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-
-        .device-mac {
+        /* --- Bluetooth Special --- */
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
             font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .device-status {
-            font-size: 0.75rem;
-            padding: 2px 8px;
-            border-radius: 4px;
             font-weight: 700;
             text-transform: uppercase;
         }
 
         .status-connected {
-            background: rgba(16, 185, 129, 0.2);
+            background: rgba(16, 185, 129, 0.1);
             color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
-        .btn-small {
-            padding: 6px 12px;
+        .status-paired {
+            background: rgba(167, 139, 250, 0.1);
+            color: var(--secondary);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+        }
+
+        .bt-device-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 16px;
+            margin-bottom: 12px;
+            border: 1px solid transparent;
+        }
+
+        .bt-device-item:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: var(--glass-border);
+        }
+
+        .bt-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .bt-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--glass-bg);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .bt-details h4 {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .bt-details p {
+            margin: 2px 0 0;
             font-size: 0.8rem;
+            color: var(--text-secondary);
         }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
+        .pulse-active {
+            position: relative;
+        }
+
+        .pulse-active::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 24px;
+            border: 2px solid var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            70% { transform: scale(1.05); opacity: 0; }
+            100% { transform: scale(1.1); opacity: 0; }
+        }
+
+        /* --- Tables --- */
+        .modern-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+
+        .modern-table th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .modern-table td {
+            padding: 16px;
+            background: rgba(255,255,255,0.02);
+            border-top: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .modern-table td:first-child {
+            border-left: 1px solid var(--glass-border);
+            border-top-left-radius: 12px;
+            border-bottom-left-radius: 12px;
+        }
+
+        .modern-table td:last-child {
+            border-right: 1px solid var(--glass-border);
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        /* --- Chat UI --- */
+        .chat-box {
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .msg {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .msg-assistant {
+            align-self: flex-start;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: var(--bg-deep);
+            font-weight: 500;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-input {
+            margin-top: 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        /* --- Notifications --- */
+        #notification {
+            position: fixed;
+            top: 32px;
+            right: 32px;
+            padding: 16px 24px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateX(200%);
+            transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        #notification.show {
+            transform: translateX(0);
+        }
+
+        .notif-icon {
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- Loader --- */
+        .loader {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
 
-        /* Chat interface */
-        .chat-container {
-            height: 300px;
-            overflow-y: auto;
-            padding: 15px;
-            background: rgba(15, 23, 42, 0.4);
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .chat-msg {
-            max-width: 80%;
-            padding: 10px 15px;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            line-height: 1.4;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .msg-user {
-            align-self: flex-end;
-            background: var(--accent);
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-
-        .msg-assistant {
-            align-self: flex-start;
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-main);
-            border: 1px solid var(--glass-border);
-            border-bottom-left-radius: 4px;
-        }
-
-        .chat-input-area {
-            display: flex;
-            gap: 10px;
-        }
-
-        #chatInput {
-            flex-grow: 1;
-        }
+        .hidden { display: none !important; }
 
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="header" style="position: relative;">
-            <a href="{{ url_for('logout') }}" style="position: absolute; right: 0; top: 0; color: var(--text-muted); text-decoration: none; font-size: 0.9rem; border: 1px solid var(--glass-border); padding: 5px 10px; border-radius: 5px; background: rgba(255,255,255,0.05); transition: all 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">Déconnexion</a>
-            <h1>Edge AI Settings</h1>
-            <p>Panneau de configuration local</p>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <i data-lucide="cpu"></i>
+            Nest Lite
+        </div>
+        <nav class="nav-list">
+            <div class="nav-item">
+                <a href="#section-general" class="nav-link active">
+                    <i data-lucide="settings"></i>
+                    Général
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#section-bluetooth" class="nav-link">
+                    <i data-lucide="bluetooth"></i>
+                    Bluetooth
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#section-ia" class="nav-link">
+                    <i data-lucide="brain"></i>
+                    Intelligence
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#section-modules" class="nav-link">
+                    <i data-lucide="layers"></i>
+                    Modules
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#section-chat" class="nav-link">
+                    <i data-lucide="message-square"></i>
+                    Chat
+                </a>
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="/logout" class="nav-link" style="color: var(--danger);">
+                <i data-lucide="log-out"></i>
+                Déconnexion
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="header-top">
+            <div class="welcome-msg">
+                <h1>Dashboard Local</h1>
+                <p>Contrôlez votre assistant Edge AI</p>
+            </div>
+            <div class="actions">
+                <button class="btn btn-danger" id="btnRestart">
+                    <i data-lucide="refresh-cw"></i>
+                    Redémarrer
+                </button>
+            </div>
         </div>
 
         <form id="configForm">
-            <!-- Audio & Wake Word -->
-            <div class="card">
-                <h2>🎤 Audio & Déclencheur</h2>
+            <div class="grid">
                 
-                <div class="form-group">
-                    <label>Mot d'éveil (Wake Word)</label>
-                    <span class="hint">Modèles supportés : hey_google, alexa, hey_jarvis...</span>
-                    <input type="text" id="WAKE_WORD" name="WAKE_WORD" placeholder="hey_google">
-                </div>
-
-                <div class="form-group">
-                    <label>Sensibilité du déclencheur</label>
-                    <span class="hint">De 0.1 à 1.0. Plus c'est haut, moins il y a de faux positifs.</span>
-                    <input type="number" id="WAKE_WORD_THRESHOLD" name="WAKE_WORD_THRESHOLD" step="0.05" min="0" max="1" placeholder="0.5">
-                </div>
-
-                <div class="form-group">
-                    <label>Sensibilité au silence</label>
-                    <span class="hint">Seuil RMS de détection de fin de phrase (ex: 0.015)</span>
-                    <input type="number" id="RECORD_SILENCE_THRESHOLD" name="RECORD_SILENCE_THRESHOLD" step="0.005" placeholder="0.015">
-                </div>
-            </div>
-
-            <!-- Bluetooth -->
-            <div class="card">
-                <h2>🔊 Haut-parleurs Bluetooth</h2>
-                <span class="hint">Connectez un haut-parleur externe pour sortir l'audio de l'assistant.</span>
-                
-                <div id="btStatus">
-                    <!-- Dynamic status here -->
-                </div>
-
-                <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
-                    <label>Appareils à proximité</label>
-                    <button type="button" class="btn-primary btn-small" id="btnScanBT">Lancer un scan</button>
-                </div>
-
-                <div id="btDevices" class="device-list">
-                    <p class="hint" style="text-align: center; margin-top: 20px;">Cliquez sur scan pour rechercher des appareils.</p>
-                </div>
-            </div>
-
-            <!-- IA / LLM -->
-            <div class="card">
-                <h2>🧠 Intelligence Artificielle</h2>
-                
-                <div class="form-group">
-                    <label>Moteur Whisper (STT)</label>
-                    <select id="WHISPER_MODEL" name="WHISPER_MODEL">
-                        <option value="tiny">Tiny (Plus rapide, ~60MB RAM)</option>
-                        <option value="base">Base (Plus précis, ~140MB RAM)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Langue de transcription</label>
-                    <span class="hint">"fr" pour Français, ou "auto" pour détection automatique.</span>
-                    <select id="WHISPER_LANGUAGE" name="WHISPER_LANGUAGE">
-                        <option value="fr">Français (Recommandé)</option>
-                        <option value="en">Anglais</option>
-                        <option value="auto">Détection automatique</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Architecture du Cerveau (LLM)</label>
-                    <span class="hint">Local (llama-cpp sur la carte) ou distant (Ollama sur le réseau)</span>
-                    <select id="LLM_MODE" name="LLM_MODE">
-                        <option value="local">Local (llama-cpp)</option>
-                        <option value="api">Réseau distant (API / Ollama)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Longueur de réponse max (Tokens)</label>
-                    <input type="number" id="LLM_MAX_TOKENS" name="LLM_MAX_TOKENS" placeholder="150">
-                </div>
-
-                <div class="form-group" style="padding-top: 15px; border-top: 1px solid var(--glass-border);">
-                    <label>Serveur Ollama Local</label>
-                    <div id="ollamaStatusArea" style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;">
-                        <div id="ollamaStatus">
-                            <span class="hint">Chargement du statut...</span>
+                <!-- Section Général -->
+                <div class="col-8" id="section-general">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="mic"></i> Audio & Déclencheur</h2>
                         </div>
-                        <div id="ollamaAction">
-                            <!-- Button dynamically added -->
+                        <div class="grid" style="gap: 16px;">
+                            <div class="col-12 form-group">
+                                <label>Mot d'éveil (Wake Word)</label>
+                                <input type="text" id="WAKE_WORD" name="WAKE_WORD" placeholder="hey_google">
+                            </div>
+                            <div class="col-6 form-group">
+                                <label>Sensibilité</label>
+                                <input type="number" id="WAKE_WORD_THRESHOLD" name="WAKE_WORD_THRESHOLD" step="0.05" min="0" max="1">
+                            </div>
+                            <div class="col-6 form-group">
+                                <label>Seuil de silence</label>
+                                <input type="number" id="RECORD_SILENCE_THRESHOLD" name="RECORD_SILENCE_THRESHOLD" step="0.005">
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Modules -->
-            <div class="card">
-                <h2>🧩 Modules optionnels</h2>
-                
-                <div class="form-group">
-                    <label>Radio Internet</label>
-                    <select id="ENABLE_RADIO" name="ENABLE_RADIO">
-                        <option value="true">Activé</option>
-                        <option value="false">Désactivé</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Minuteurs & Alarmes</label>
-                    <select id="ENABLE_TIMERS" name="ENABLE_TIMERS">
-                        <option value="true">Activé</option>
-                        <option value="false">Désactivé</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Radio -->
-            <div class="card">
-                <h2>📻 Stations de Radio</h2>
-                <div class="form-group">
-                    <label>Configuration des stations (JSON)</label>
-                    <span class="hint">Format: {"Nom": "URL", ...}</span>
-                    <textarea id="RADIO_STATIONS" name="RADIO_STATIONS" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
-                </div>
-            </div>
-
-            <!-- Chromecast -->
-            <div class="card">
-                <h2>📺 Chromecast</h2>
-                
-                <div class="form-group">
-                    <label>Activer Chromecast</label>
-                    <select id="ENABLE_CHROMECAST" name="ENABLE_CHROMECAST">
-                        <option value="true">Activé</option>
-                        <option value="false">Désactivé</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Nom du Chromecast (Cible)</label>
-                    <span class="hint">Ex: Télé du salon. Laissez vide pour le premier trouvé.</span>
-                    <input type="text" id="CHROMECAST_NAME" name="CHROMECAST_NAME" placeholder="Nom de l'appareil">
-                </div>
-
-                <div class="form-group">
-                    <label>Applications (JSON)</label>
-                    <span class="hint">Format: {"Nom": "ID", ...}</span>
-                    <textarea id="CHROMECAST_APPS" name="CHROMECAST_APPS" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
-                </div>
-            </div>
-
-            <!-- Chromecast Card ... -->
-            <div class="card">
-                <h2>💻 Wake on LAN</h2>
-                
-                <div class="form-group">
-                    <label>Activer Wake on LAN</label>
-                    <select id="ENABLE_WOL" name="ENABLE_WOL">
-                        <option value="true">Activé</option>
-                        <option value="false">Désactivé</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Appareils (JSON)</label>
-                    <span class="hint">Format: {"Nom": "MAC Address", ...}</span>
-                    <textarea id="WOL_DEVICES" name="WOL_DEVICES" rows="5" style="width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 8px; color: white; padding: 12px; font-family: monospace;"></textarea>
-                </div>
-            </div>
-
-            <!-- Chat Card -->
-            <div class="card">
-                <h2>💬 Conversation Directe</h2>
-                <span class="hint">Discutez avec l'assistant ici si vous ne pouvez pas utiliser le micro.</span>
-                
-                <div id="chatHistory" class="chat-container">
-                    <div class="chat-msg msg-assistant">Bonjour ! Comment puis-je vous aider aujourd'hui ?</div>
-                </div>
-
-                <div class="chat-input-area">
-                    <input type="text" id="chatInput" placeholder="Tapez votre message..." autocomplete="off">
-                    <button type="button" class="btn-primary" id="btnSendChat">Envoyer</button>
-                </div>
-            </div>
-            <div class="card">
-                <h2>🏠 Domotique (Somfy TaHoma)</h2>
-                
-                <div class="form-group">
-                    <label>PIN de la passerelle</label>
-                    <span class="hint">Format: 2001-1234-5678</span>
-                    <input type="text" id="SOMFY_PIN" name="SOMFY_PIN" placeholder="xxxx-xxxx-xxxx">
-                </div>
-
-                <div class="form-group">
-                    <label>Token Développeur</label>
-                    <span class="hint">Généré depuis l'interface Somfy</span>
-                    <input type="text" id="SOMFY_TOKEN" name="SOMFY_TOKEN" placeholder="eyJ...xyz">
-                </div>
-
-                <div class="form-group">
-                    <label>Adresse IP (Optionnel)</label>
-                    <span class="hint">Si `gateway-<pin>.local` ne fonctionne pas, entrez l'IP de la box.</span>
-                    <input type="text" id="SOMFY_IP" name="SOMFY_IP" placeholder="192.168.1.50">
-                </div>
-            </div>
-
-            <!-- Système -->
-            <div class="card">
-                <h2>⚙️ Système</h2>
-                <div style="display: flex; flex-direction: column; gap: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px;">
-                        <div>
-                            <span style="font-weight: 600;">Mise à jour logicielle</span><br>
-                            <span class="hint" id="updateStatus">Vérifiez les dernières nouveautés sur GitHub.</span>
+                <!-- Section Status Rapide -->
+                <div class="col-4">
+                    <div class="card" style="height: 100%;">
+                        <div class="card-header">
+                            <h2><i data-lucide="activity"></i> État Système</h2>
                         </div>
-                        <button type="button" class="btn-primary btn-small" id="btnUpdate">Mettre à jour</button>
+                        <div id="quick-status">
+                            <div class="bt-device-item" style="margin-bottom: 24px;">
+                                <div class="bt-info">
+                                    <div class="bt-icon"><i data-lucide="zap"></i></div>
+                                    <div class="bt-details">
+                                        <h4>Mise à jour</h4>
+                                        <p id="updateStatus">Vérification...</p>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm" id="btnUpdate">Check</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Moteur Whisper</label>
+                                <select id="WHISPER_MODEL" name="WHISPER_MODEL">
+                                    <option value="tiny">Tiny (~60MB)</option>
+                                    <option value="base">Base (~140MB)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                <i data-lucide="save"></i>
+                                Sauvegarder
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="btn-container">
-                <button type="button" class="btn-danger" id="btnRestart">Redémarrer l'assistant</button>
-                <button type="submit" class="btn-primary">Sauvegarder la configuration</button>
-            </div>
+                <!-- Section Bluetooth -->
+                <div class="col-12" id="section-bluetooth">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="bluetooth"></i> Gestion Bluetooth</h2>
+                            <button type="button" class="btn btn-primary btn-sm" id="btnScanBT">
+                                <i data-lucide="search"></i>
+                                Scanner
+                            </button>
+                        </div>
 
+                        <!-- Active Connection -->
+                        <div id="active-bt-area" class="hidden" style="margin-bottom: 32px;">
+                            <label>Haut-parleur actif</label>
+                            <div id="btStatus"></div>
+                        </div>
+
+                        <div class="grid">
+                            <!-- Paired Devices -->
+                            <div class="col-8">
+                                <label>Appareils enregistrés</label>
+                                <div style="overflow-x: auto;">
+                                    <table class="modern-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Appareil</th>
+                                                <th>MAC</th>
+                                                <th>État</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="pairedDevicesList">
+                                            <!-- Dynamic -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Scan Results -->
+                            <div class="col-4">
+                                <label>Nouveaux appareils</label>
+                                <div id="btScanList" style="margin-top: 8px;">
+                                    <p class="text-secondary" style="font-size: 0.9rem; text-align: center; padding: 20px;">
+                                        Lancez un scan pour voir les appareils à proximité.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section IA -->
+                <div class="col-12" id="section-ia">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="cpu"></i> Cerveau & Intelligence</h2>
+                        </div>
+                        <div class="grid">
+                            <div class="col-4 form-group">
+                                <label>Langue</label>
+                                <select id="WHISPER_LANGUAGE" name="WHISPER_LANGUAGE">
+                                    <option value="fr">Français</option>
+                                    <option value="en">Anglais</option>
+                                    <option value="auto">Auto</option>
+                                </select>
+                            </div>
+                            <div class="col-4 form-group">
+                                <label>Mode LLM</label>
+                                <select id="LLM_MODE" name="LLM_MODE">
+                                    <option value="local">Local (Internal)</option>
+                                    <option value="api">Distant (Ollama/API)</option>
+                                </select>
+                            </div>
+                            <div class="col-4 form-group">
+                                <label>Tokens Max</label>
+                                <input type="number" id="LLM_MAX_TOKENS" name="LLM_MAX_TOKENS">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h4 style="margin: 0;">Serveur Ollama</h4>
+                                    <p id="ollamaStatus" class="text-secondary" style="font-size: 0.8rem; margin: 4px 0 0;">Chargement...</p>
+                                </div>
+                                <div id="ollamaAction"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section Chat -->
+                <div class="col-12" id="section-chat">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="message-square"></i> Conversation Directe</h2>
+                        </div>
+                        <div class="chat-box">
+                            <div id="chatHistory" class="chat-messages">
+                                <div class="msg msg-assistant">Bonjour ! Je suis prêt à vous aider.</div>
+                            </div>
+                            <div class="chat-input">
+                                <input type="text" id="chatInput" placeholder="Tapez votre commande ici..." autocomplete="off">
+                                <button type="button" class="btn btn-primary" id="btnSendChat">
+                                    <i data-lucide="send"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </form>
+    </main>
+
+    <!-- Notification system -->
+    <div id="notification">
+        <div class="notif-icon" id="notifIcon"><i data-lucide="check"></i></div>
+        <span id="notifMessage">Message</span>
     </div>
 
-    <div id="notification">✅ Configuration sauvegardée</div>
-
     <script>
-        // Load data on start
-        fetch('/api/config')
-            .then(res => res.json())
-            .then(data => {
-                for (const key in data) {
-                    const el = document.getElementById(key);
-                    if (el) {
-                        let val = data[key];
-                        // Handle special case for null -> auto
-                        if (key === "WHISPER_LANGUAGE" && val === null) val = "auto";
-                        el.value = val;
+        // Init Lucide icons
+        lucide.createIcons();
+
+        // --- Data Loading ---
+        function loadConfig() {
+            fetch('/api/config')
+                .then(res => res.json())
+                .then(data => {
+                    for (const key in data) {
+                        const el = document.getElementById(key);
+                        if (el) {
+                            let val = data[key];
+                            if (key === "WHISPER_LANGUAGE" && val === null) val = "auto";
+                            el.value = val;
+                        }
                     }
-                }
-            })
-            .catch(err => console.error("Could not load config", err));
-
-        // Save
-        document.getElementById('configForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const data = {};
-            for (let [key, value] of formData.entries()) {
-                // Special handling for boolean strings from selects
-                if (value === "true") value = true;
-                else if (value === "false") value = false;
-                // Special handling for WHISPER_LANGUAGE "auto" -> null
-                else if (key === "WHISPER_LANGUAGE" && value === "auto") value = null;
-                // Convert numbers dynamically if it looks like a number and NOT a PIN or String-based number
-                else if (value !== null && value !== "" && !isNaN(value) && !key.includes('PIN') && !key.includes('CHROMECAST_APPS')) {
-                    // Check if it should be float or int
-                    data[key] = value.includes('.') ? parseFloat(value) : parseInt(value);
-                    continue;
-                }
-                data[key] = value;
-            }
-
-            fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-            .then(() => {
-                const notif = document.getElementById('notification');
-                notif.classList.add('show');
-                setTimeout(() => notif.classList.remove('show'), 3000);
-            });
-        });
-
-        // Restart
-        document.getElementById('btnRestart').addEventListener('click', function() {
-            if(confirm("L'assistant va redémarrer. Êtes-vous sûr ?")) {
-                fetch('/api/restart', { method: 'POST' })
-                .then(() => {
-                    alert("Requête de redémarrage envoyée. La page peut être indisponible pendant quelques secondes.");
-                    setTimeout(() => window.location.reload(), 5000);
                 });
-            }
-        });
+        }
 
         // --- Bluetooth Logic ---
-        function loadBTStatus() {
+        function refreshBT() {
             fetch('/api/bluetooth/status')
                 .then(res => res.json())
                 .then(data => {
+                    const statusArea = document.getElementById('active-bt-area');
                     const statusEl = document.getElementById('btStatus');
+                    const pairedList = document.getElementById('pairedDevicesList');
+
+                    // Active Connection
                     if (data.connected) {
+                        statusArea.classList.remove('hidden');
                         statusEl.innerHTML = `
-                            <div class="device-item" style="border-color: var(--success); background: rgba(16, 185, 129, 0.05);">
-                                <div class="device-info">
-                                    <span class="device-name">${data.connected.name}</span>
-                                    <span class="device-mac">${data.connected.mac}</span>
+                            <div class="bt-device-item pulse-active" style="border-color: var(--success);">
+                                <div class="bt-info">
+                                    <div class="bt-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                                        <i data-lucide="speaker"></i>
+                                    </div>
+                                    <div class="bt-details">
+                                        <h4>${data.connected.name}</h4>
+                                        <p>${data.connected.mac}</p>
+                                    </div>
                                 </div>
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <span class="device-status status-connected">Connecté</span>
-                                    <button type="button" class="btn-danger btn-small" onclick="disconnectBT('${data.connected.mac}')">Déconnecter</button>
+                                <div style="display: flex; gap: 8px;">
+                                    <span class="status-badge status-connected">Connecté</span>
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="actionBT('disconnect', '${data.connected.mac}')">Déconnecter</button>
                                 </div>
                             </div>
                         `;
                     } else {
-                        statusEl.innerHTML = `<p class="hint">Aucun haut-parleur connecté.</p>`;
+                        statusArea.classList.add('hidden');
                     }
+
+                    // Paired List
+                    pairedList.innerHTML = '';
+                    if (data.paired && data.paired.length > 0) {
+                        data.paired.forEach(dev => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <i data-lucide="${dev.connected ? 'speaker' : 'bluetooth'}" style="width:16px; color: ${dev.connected ? 'var(--success)' : 'var(--text-secondary)'}"></i>
+                                        <strong>${dev.name}</strong>
+                                    </div>
+                                </td>
+                                <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);">${dev.mac}</td>
+                                <td>
+                                    <span class="status-badge ${dev.connected ? 'status-connected' : 'status-paired'}">
+                                        ${dev.connected ? 'Connecté' : 'Appairé'}
+                                    </span>
+                                    ${dev.trusted ? '<i data-lucide="shield-check" style="width:14px; color: var(--primary); margin-left: 5px;"></i>' : ''}
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: 5px;">
+                                        ${dev.connected ? '' : `<button type="button" class="btn btn-ghost btn-sm" onclick="actionBT('connect', '${dev.mac}')" title="Connecter"><i data-lucide="play" style="width:14px;"></i></button>`}
+                                        <button type="button" class="btn btn-ghost btn-sm" onclick="actionBT('${dev.trusted ? 'untrust' : 'trust'}', '${dev.mac}')" title="${dev.trusted ? 'Retirer confiance' : 'Faire confiance'}">
+                                            <i data-lucide="${dev.trusted ? 'shield-off' : 'shield'}" style="width:14px;"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="actionBT('remove', '${dev.mac}')" title="Oublier"><i data-lucide="trash-2" style="width:14px;"></i></button>
+                                    </div>
+                                </td>
+                            `;
+                            pairedList.appendChild(row);
+                        });
+                    } else {
+                        pairedList.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-secondary);">Aucun appareil appairé.</td></tr>';
+                    }
+                    lucide.createIcons();
                 });
         }
 
         function scanBT() {
             const btn = document.getElementById('btnScanBT');
-            const list = document.getElementById('btDevices');
+            const list = document.getElementById('btScanList');
             btn.disabled = true;
-            btn.innerHTML = `<div class="loading-spinner"></div> Scan en cours...`;
-            list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Recherche d'appareils Bluetooth (10s)...</p>`;
+            btn.innerHTML = `<div class="loader"></div>`;
+            list.innerHTML = `<div style="text-align:center; padding: 20px;"><div class="loader" style="margin: 0 auto 10px;"></div><p class="text-secondary">Scan en cours (10s)...</p></div>`;
 
             fetch('/api/bluetooth/discover')
-                .then(res => {
-                    if (!res.ok) return res.json().then(err => { throw new Error(err.error || 'Erreur serveur'); });
-                    return res.json();
-                })
+                .then(res => res.json())
                 .then(devices => {
                     btn.disabled = false;
-                    btn.innerHTML = `Lancer un scan`;
-                    
-                    if (devices.length === 0) {
-                        list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px;">Aucun appareil trouvé.</p>`;
-                        return;
-                    }
-
+                    btn.innerHTML = `<i data-lucide="search"></i> Scanner`;
                     list.innerHTML = '';
-                    devices.forEach(dev => {
-                        const item = document.createElement('div');
-                        item.className = 'device-item';
-                        item.innerHTML = `
-                            <div class="device-info">
-                                <span class="device-name">${dev.name || 'Appareil inconnu'}</span>
-                                <span class="device-mac">${dev.mac}</span>
-                            </div>
-                            <button type="button" class="btn-primary btn-small" id="btn-connect-${dev.mac.replace(/:/g, '')}" onclick="connectBT('${dev.mac}')">Connecter</button>
-                        `;
-                        list.appendChild(item);
-                    });
+                    if (devices.length === 0) {
+                        list.innerHTML = `<p class="text-secondary" style="text-align:center; padding: 20px;">Aucun appareil trouvé.</p>`;
+                    } else {
+                        devices.forEach(dev => {
+                            const item = document.createElement('div');
+                            item.className = 'bt-device-item';
+                            item.innerHTML = `
+                                <div class="bt-info">
+                                    <div class="bt-icon"><i data-lucide="bluetooth"></i></div>
+                                    <div class="bt-details">
+                                        <h4>${dev.name || 'Inconnu'}</h4>
+                                        <p>${dev.mac}</p>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="actionBT('connect', '${dev.mac}')">Pair</button>
+                            `;
+                            list.appendChild(item);
+                        });
+                    }
+                    lucide.createIcons();
                 })
                 .catch(err => {
                     btn.disabled = false;
-                    btn.innerHTML = `Lancer un scan`;
-                    list.innerHTML = `<p class="hint" style="text-align: center; margin-top: 20px; color: var(--danger);">Erreur : ${err.message}</p>`;
+                    btn.innerHTML = `<i data-lucide="search"></i> Scanner`;
+                    notify("Erreur lors du scan", "danger");
                 });
         }
 
-        function connectBT(mac) {
-            const notif = document.getElementById('notification');
-            const btn = document.getElementById('btn-connect-' + mac.replace(/:/g, ''));
-            const oldBtnText = btn ? btn.innerHTML : "Connecter";
-            
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `<div class="loading-spinner" style="width:12px; height:12px; border-width:2px;"></div>`;
-            }
-
-            notif.innerHTML = "Tentative de connexion (Appairage & Agent)...";
-            notif.style.background = "var(--accent)";
-            notif.classList.add('show');
-
-            fetch('/api/bluetooth/connect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mac: mac })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = oldBtnText;
-                }
-                
-                if (data.status === "success") {
-                    notif.innerHTML = "✅ Connecté avec succès !";
-                    notif.style.background = "var(--success)";
-                    loadBTStatus();
+        async function actionBT(action, mac) {
+            notify(`Opération ${action} en cours...`, "primary");
+            try {
+                const res = await fetch(`/api/bluetooth/${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mac })
+                });
+                const data = await res.json();
+                if (data.status === "success" || data.status === "up_to_date") {
+                    notify("Action réussie", "success");
+                    refreshBT();
                 } else {
-                    notif.innerHTML = "❌ Échec : Vérifiez que l'appareil est en mode appairage";
-                    notif.style.background = "var(--danger)";
+                    notify("Échec de l'action", "danger");
                 }
-                setTimeout(() => notif.classList.remove('show'), 5000);
-            })
-            .catch(err => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = oldBtnText;
-                }
-                notif.innerHTML = "❌ Erreur réseau ou Bluetooth";
-                notif.style.background = "var(--danger)";
-                setTimeout(() => notif.classList.remove('show'), 3000);
-            });
+            } catch (e) {
+                notify("Erreur réseau", "danger");
+            }
         }
 
+        // --- Notifications ---
+        function notify(msg, type = "success") {
+            const el = document.getElementById('notification');
+            const icon = document.getElementById('notifIcon');
+            const message = document.getElementById('notifMessage');
 
-        function disconnectBT(mac) {
-            fetch('/api/bluetooth/disconnect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mac: mac })
-            })
-            .then(() => {
-                loadBTStatus();
-            });
+            message.textContent = msg;
+            el.className = '';
+            el.classList.add('show');
+            
+            if (type === "danger") el.style.borderLeft = "4px solid var(--danger)";
+            else if (type === "primary") el.style.borderLeft = "4px solid var(--primary)";
+            else el.style.borderLeft = "4px solid var(--success)";
+
+            setTimeout(() => el.classList.remove('show'), 4000);
         }
 
-        document.getElementById('btnScanBT').addEventListener('click', scanBT);
-        
-        // --- Chat Logic ---
+        // --- Chat ---
         const chatHistory = document.getElementById('chatHistory');
         const chatInput = document.getElementById('chatInput');
-        const btnSendChat = document.getElementById('btnSendChat');
-
-        function appendMessage(text, type) {
-            const msg = document.createElement('div');
-            msg.className = `chat-msg msg-${type}`;
-            msg.textContent = text;
-            chatHistory.appendChild(msg);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }
-
+        
         function sendChat() {
             const text = chatInput.value.trim();
             if (!text) return;
 
-            appendMessage(text, 'user');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'msg msg-user';
+            userMsg.textContent = text;
+            chatHistory.appendChild(userMsg);
             chatInput.value = '';
-            
-            // Show a thinking indicator
-            const thinking = document.createElement('div');
-            thinking.className = 'chat-msg msg-assistant';
-            thinking.innerHTML = '<i>En train de réfléchir...</i>';
-            chatHistory.appendChild(thinking);
             chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'msg msg-assistant';
+            loadingMsg.innerHTML = '<div class="loader"></div>';
+            chatHistory.appendChild(loadingMsg);
 
             fetch('/api/chat', {
                 method: 'POST',
@@ -764,125 +926,94 @@
             })
             .then(res => res.json())
             .then(data => {
-                chatHistory.removeChild(thinking);
-                if (data.status === 'success') {
-                    appendMessage(data.response, 'assistant');
-                } else {
-                    appendMessage("Erreur : " + (data.response || "Inconnue"), 'assistant');
-                }
-            })
-            .catch(err => {
-                chatHistory.removeChild(thinking);
-                appendMessage("Impossible de contacter l'assistant.", 'assistant');
+                chatHistory.removeChild(loadingMsg);
+                const botMsg = document.createElement('div');
+                botMsg.className = 'msg msg-assistant';
+                botMsg.textContent = data.response;
+                chatHistory.appendChild(botMsg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
             });
         }
 
-        btnSendChat.addEventListener('click', sendChat);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendChat();
-        });
-
-        // --- Ollama Logic ---
-        function checkOllamaStatus() {
-            const statusEl = document.getElementById('ollamaStatus');
-            const actionEl = document.getElementById('ollamaAction');
-
+        // --- System ---
+        function checkOllama() {
             fetch('/api/ollama/status')
                 .then(res => res.json())
                 .then(data => {
+                    const statusEl = document.getElementById('ollamaStatus');
+                    const actionEl = document.getElementById('ollamaAction');
                     if (data.status === "installed") {
-                        statusEl.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Ollama Installé</span><br><span class="hint">${data.version}</span>`;
-                        actionEl.innerHTML = '';
-                    } else if (data.status === "not_installed") {
-                        statusEl.innerHTML = `<span style="color: var(--text-muted);">Non détecté</span>`;
-                        actionEl.innerHTML = `<button type="button" class="btn-primary btn-small" id="btnInstallOllama" onclick="installOllama()">Installer</button>`;
+                        statusEl.innerHTML = `Connecté (Version: ${data.version})`;
+                        statusEl.style.color = "var(--success)";
                     } else {
-                        statusEl.innerHTML = `<span style="color: var(--danger);">Erreur : ${data.message || 'Inconnue'}</span>`;
-                        actionEl.innerHTML = `<button type="button" class="btn-primary btn-small" onclick="installOllama()">Réessayer</button>`;
+                        statusEl.innerHTML = "Non installé";
+                        actionEl.innerHTML = `<button type="button" class="btn btn-primary btn-sm" onclick="installOllama()">Installer</button>`;
                     }
                 });
         }
 
-        function installOllama() {
-            const statusEl = document.getElementById('ollamaStatus');
-            const actionEl = document.getElementById('ollamaAction');
+        // Event Listeners
+        document.getElementById('btnScanBT').addEventListener('click', scanBT);
+        document.getElementById('btnSendChat').addEventListener('click', sendChat);
+        chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendChat(); });
+        
+        document.getElementById('configForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {};
+            formData.forEach((value, key) => {
+                if (value === "true") value = true;
+                else if (value === "false") value = false;
+                else if (key === "WHISPER_LANGUAGE" && value === "auto") value = null;
+                else if (!isNaN(value) && value !== "" && !key.includes('PIN')) {
+                    value = value.includes('.') ? parseFloat(value) : parseInt(value);
+                }
+                data[key] = value;
+            });
 
-            if (!confirm("Voulez-vous lancer l'installation d'Ollama ? Cela peut prendre quelques minutes.")) return;
+            fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(() => notify("Configuration enregistrée !"));
+        });
 
-            statusEl.innerHTML = `<div class="loading-spinner"></div> <span class="hint">Installation en cours...</span>`;
-            actionEl.innerHTML = '';
+        document.getElementById('btnRestart').addEventListener('click', () => {
+            if (confirm("Redémarrer l'assistant ?")) {
+                fetch('/api/restart', { method: 'POST' });
+                notify("Redémarrage en cours...", "primary");
+            }
+        });
 
-            fetch('/api/ollama/install', { method: 'POST' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === "started") {
-                        const notif = document.getElementById('notification');
-                        notif.innerHTML = "Installation d'Ollama lancée en arrière-plan";
-                        notif.style.background = "var(--accent)";
-                        notif.classList.add('show');
-                        setTimeout(() => notif.classList.remove('show'), 3000);
-                        
-                        // Re-check every 30s
-                        const interval = setInterval(() => {
-                            fetch('/api/ollama/status')
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (data.status === "installed") {
-                                        checkOllamaStatus();
-                                        clearInterval(interval);
-                                    }
-                                });
-                        }, 30000);
-                    }
-                });
-        }
-
-        function systemUpdate() {
-            const btn = document.getElementById('btnUpdate');
-            const statusEl = document.getElementById('updateStatus');
-            const notif = document.getElementById('notification');
-
-            if (!confirm("Voulez-vous mettre à jour l'assistant ? Cela va télécharger les derniers changements depuis GitHub.")) return;
-
-            btn.disabled = true;
-            btn.innerHTML = `<div class="loading-spinner"></div> Mise à jour...`;
-            statusEl.innerHTML = "Téléchargement des fichiers...";
-
+        document.getElementById('btnUpdate').addEventListener('click', () => {
+            notify("Vérification des mises à jour...", "primary");
             fetch('/api/system/update', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
-                    btn.disabled = false;
-                    btn.innerHTML = `Mettre à jour`;
-                    
-                    if (data.status === "success") {
-                        statusEl.innerHTML = `<span style="color: var(--success);">✅ Mise à jour réussie !</span>`;
-                        notif.innerHTML = "Mise à jour terminée. Redémarrage...";
-                        notif.style.background = "var(--success)";
-                        notif.classList.add('show');
-                        setTimeout(() => {
-                            fetch('/api/restart', { method: 'POST' });
-                            setTimeout(() => window.location.reload(), 5000);
-                        }, 2000);
-                    } else if (data.status === "up_to_date") {
-                        statusEl.innerHTML = `<span style="color: var(--text-muted);">Vous utilisez déjà la dernière version.</span>`;
-                    } else {
-                        statusEl.innerHTML = `<span style="color: var(--danger);">Erreur : ${data.message}</span>`;
-                        alert("Erreur lors de la mise à jour : " + data.message);
-                    }
-                })
-                .catch(err => {
-                    btn.disabled = false;
-                    btn.innerHTML = `Mettre à jour`;
-                    statusEl.innerHTML = `<span style="color: var(--danger);">Erreur réseau</span>`;
+                    document.getElementById('updateStatus').textContent = data.message;
+                    notify(data.message);
                 });
-        }
+        });
 
-        document.getElementById('btnUpdate').addEventListener('click', systemUpdate);
+        // Sidebar Navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', e => {
+                if (link.getAttribute('href').startsWith('#')) {
+                    e.preventDefault();
+                    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                    const target = document.querySelector(link.getAttribute('href'));
+                    if (target) target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
 
-        // Initial load
-        loadBTStatus();
-        checkOllamaStatus();
+        // Initial Load
+        loadConfig();
+        refreshBT();
+        checkOllama();
+        setInterval(refreshBT, 10000); // Polling every 10s
+
     </script>
-
 </body>
 </html>

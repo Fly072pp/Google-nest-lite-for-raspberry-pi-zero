@@ -78,15 +78,21 @@ class BluetoothManager:
         return [{"mac": m, "name": n} for m, n in devices.items() if n]
 
     def get_paired_devices(self):
-        """Returns list of paired devices."""
+        """Returns list of paired devices with full status info."""
         output = self._run_command("paired-devices")
         devices = []
         for line in output.splitlines():
             match = re.search(r"Device\s+(([0-9A-F]{2}:?){6})\s+(.*)", line, re.I)
             if match:
+                mac = match.group(1)
+                name = match.group(3).strip()
+                info = self.get_info(mac)
                 devices.append({
-                    "mac": match.group(1),
-                    "name": match.group(3).strip()
+                    "mac": mac,
+                    "name": name,
+                    "connected": info["connected"],
+                    "paired": info["paired"],
+                    "trusted": info["trusted"]
                 })
         return devices
 
@@ -178,6 +184,18 @@ class BluetoothManager:
         """Removes (unpairs) a device."""
         log.info(f"Removing device {mac}...")
         self._run_command(f"remove {mac}")
+        return True
+
+    def trust(self, mac):
+        """Trusts a device."""
+        log.info(f"Trusting device {mac}...")
+        self._run_command(f"trust {mac}")
+        return True
+
+    def untrust(self, mac):
+        """Untrusts a device."""
+        log.info(f"Untrusting device {mac}...")
+        self._run_command(f"untrust {mac}")
         return True
 
     def get_status(self):

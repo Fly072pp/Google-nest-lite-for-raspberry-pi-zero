@@ -214,6 +214,26 @@ def bt_remove():
     bt.remove(mac)
     return jsonify({"status": "success"})
 
+@app.route("/api/bluetooth/trust", methods=["POST"])
+def bt_trust():
+    data = request.json
+    mac = data.get("mac")
+    if not mac:
+        return jsonify({"error": "MAC address required"}), 400
+    
+    bt.trust(mac)
+    return jsonify({"status": "success"})
+
+@app.route("/api/bluetooth/untrust", methods=["POST"])
+def bt_untrust():
+    data = request.json
+    mac = data.get("mac")
+    if not mac:
+        return jsonify({"error": "MAC address required"}), 400
+    
+    bt.untrust(mac)
+    return jsonify({"status": "success"})
+
 # --- Ollama API ---
 
 @app.route("/api/ollama/status", methods=["GET"])
