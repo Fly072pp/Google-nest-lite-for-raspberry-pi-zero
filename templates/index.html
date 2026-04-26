@@ -627,6 +627,16 @@
                                 <label>Mot d'éveil (Wake Word)</label>
                                 <input type="text" id="WAKE_WORD" name="WAKE_WORD" placeholder="hey_google">
                             </div>
+                            <div class="col-12 form-group">
+                                <label>Périphérique de sortie ALSA</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="AUDIO_OUTPUT_DEVICE" name="AUDIO_OUTPUT_DEVICE" placeholder="default" style="flex-grow: 1;">
+                                    <button type="button" class="btn btn-ghost" id="btnTestAudio" title="Tester le son">
+                                        <i data-lucide="volume-2"></i>
+                                    </button>
+                                </div>
+                                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">Utilisez "bluealsa" ou "pulse" si "default" ne fonctionne pas.</p>
+                            </div>
                             <div class="col-6 form-group">
                                 <label>Sensibilité</label>
                                 <input type="number" id="WAKE_WORD_THRESHOLD" name="WAKE_WORD_THRESHOLD" step="0.05" min="0" max="1">
@@ -1051,6 +1061,16 @@
         }
 
         // Event Listeners
+        document.getElementById('btnTestAudio').addEventListener('click', () => {
+            const device = document.getElementById('AUDIO_OUTPUT_DEVICE').value;
+            notify("Test sonore en cours...", "primary");
+            fetch('/api/audio/test', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "error") notify("Erreur: " + data.message, "danger");
+                });
+        });
+
         document.getElementById('btnScanBT').addEventListener('click', scanBT);
         document.getElementById('btnSendChat').addEventListener('click', sendChat);
         chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendChat(); });

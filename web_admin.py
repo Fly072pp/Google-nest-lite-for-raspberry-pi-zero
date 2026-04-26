@@ -152,7 +152,7 @@ def stream_logs():
         # -n 100: start with 100 lines of history
         # --no-hostname: cleaner output
         process = subprocess.Popen(
-            ["sudo", "journalctl", "-u", "voice-assistant", "-f", "-n", "100", "--no-hostname"],
+            ["journalctl", "-u", "voice-assistant", "-f", "-n", "100", "--no-hostname"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True
@@ -321,6 +321,17 @@ def chat():
         active_assistant.tts.speak(response)
         
     return jsonify({"response": response, "status": "success"})
+
+@app.route("/api/audio/test", methods=["POST"])
+def test_audio():
+    config = load_config()
+    device = config.get("AUDIO_OUTPUT_DEVICE", "default")
+    try:
+        # On lance un court test sonore
+        subprocess.run(["speaker-test", "-t", "sine", "-f", "1000", "-l", "1", "-D", device], timeout=5)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 def start_server():
     app.run(host="0.0.0.0", port=6524, debug=False, use_reloader=False)

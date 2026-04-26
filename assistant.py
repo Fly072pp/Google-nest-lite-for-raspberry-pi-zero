@@ -55,6 +55,7 @@ class Config:
     RECORD_SILENCE_THRESHOLD: float = 0.015   # RMS pour détecter le silence
     RECORD_SILENCE_DURATION: float = 1.5      # secondes de silence avant arrêt
     MAX_RECORD_SECONDS: float = 15.0           # limite de sécurité
+    AUDIO_OUTPUT_DEVICE: str = "default"       # Nom du périphérique ALSA (ex: "default", "bluealsa")
 
     # ── Wake word (openWakeWord — 100% gratuit, aucune clé requise) ────────
     # Mots disponibles nativement : "hey_jarvis", "alexa", "hey_mycroft",
@@ -814,7 +815,7 @@ class TTSEngine:
             f'{shlex.quote(cfg.PIPER_BINARY)} '
             f'--model {shlex.quote(cfg.PIPER_MODEL)} '
             f'--output_raw | '
-            f'aplay -r 22050 -f S16_LE -t raw -'
+            f'aplay -D {shlex.quote(cfg.AUDIO_OUTPUT_DEVICE)} -r 22050 -f S16_LE -t raw -'
         )
         try:
             subprocess.run(cmd_piper, shell=True, check=True)

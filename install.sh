@@ -29,6 +29,10 @@ sudo apt-get install -y \
 # ── 1.1) Groupes utilisateur ───────────────────────────────────────────────
 sudo usermod -aG bluetooth $USER
 sudo usermod -aG audio $USER
+sudo usermod -aG systemd-journal $USER
+
+# Autoriser le redémarrage du service sans mot de passe (pour le dashboard)
+echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart voice-assistant" | sudo tee /etc/sudoers.d/voice-assistant > /dev/null
 
 # ── 2) Environnement virtuel Python ───────────────────────────────────────
 echo "[2/7] Création de l'environnement virtuel Python…"
