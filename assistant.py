@@ -53,7 +53,7 @@ class Config:
     FORMAT = pyaudio.paInt16
     CHUNK_SIZE: int = 1280             # frames par buffer (openWakeWord exige 1280)
     RECORD_SILENCE_THRESHOLD: float = 0.015   # RMS pour détecter le silence
-    RECORD_SILENCE_DURATION: float = 1.5      # secondes de silence avant arrêt
+    RECORD_SILENCE_DURATION: float = 0.8       # secondes de silence avant arrêt (réduit pour les commandes courtes)
     MAX_RECORD_SECONDS: float = 15.0           # limite de sécurité
     AUDIO_OUTPUT_DEVICE: str = "default"       # Nom du périphérique ALSA (ex: "default", "bluealsa")
 
@@ -750,6 +750,51 @@ class LLMEngine:
         )
         return resp.choices[0].message.content.strip()
 
+    def generate_streaming(self, user_text: str):
+        """Génère la réponse en streaming et yield les phrases au fur et à mesure."""
+        messages = [{"role": "system", "content": cfg.SYSTEM_PROMPT}]
+        messages.extend(self._history[-8:])
+        messages.append({"role": "user", "content": user_text})
+
+        full_response = ""
+        buffer = ""
+        sentence_endings = re.compile(r'(?<=[.!?;])\s+')
+
+        try:
+            if self._mode == "api":
+                stream = self._client.chat.completions.create(
+                    model=cfg.LLM_API_MODEL,
+                    messages=messages,
+                    max_tokens=cfg.LLM_MAX_TOKENS,
+                    temperature=cfg.LLM_TEMPERATURE,
+                    stream=True,
+                )
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    buffer += delta
+                    full_response += delta
+                    # On yield une phrase dès qu'on trouve une ponctuation de fin
+                    parts = sentence_endings.split(buffer)
+                    for part in parts[:-1]:
+                        if part.strip():
+                            yield part.strip()
+                    buffer = parts[-1]
+                # Yield le reste du buffer
+                if buffer.strip():
+                    yield buffer.strip()
+            else:
+                # Pas de streaming local, on génère tout et on découpe
+                response = self._generate_local(messages) if self._mode == "local" else ""
+                full_response = response
+                for sentence in sentence_endings.split(response):
+                    if sentence.strip():
+                        yield sentence.strip()
+        finally:
+            if full_response:
+                self._history.append({"role": "user", "content": user_text})
+                self._history.append({"role": "assistant", "content": full_response})
+                log.info("🤖 Réponse complète : « %s »", full_response)
+
     def reset_history(self):
         self._history.clear()
 
@@ -761,6 +806,7 @@ class TTSEngine:
     """Synthèse vocale : Piper (qualité) ou pyttsx3 (fallback)."""
 
     def __init__(self):
+        self._cache: dict = {}  # text -> wav_path (réponses pré-générées)
         if cfg.TTS_MODE == "piper":
             self._init_piper()
         else:
@@ -799,33 +845,154 @@ class TTSEngine:
         self._mode = "pyttsx3"
 
     def speak(self, text: str):
-        """Énonce le texte donné."""
+        """Énonce le texte donné, depuis le cache si disponible."""
         log.info("🔊 Synthèse : « %s »", text)
+        if text in self._cache:
+            self.play_file(self._cache[text])
+            return
         if self._mode == "piper":
             self._speak_piper(text)
         else:
             self._speak_pyttsx3(text)
 
+    def warmup_responses(self, responses: list):
+        """Pré-génère une liste de réponses fixes en WAV pour une lecture instantanée."""
+        if self._mode != "piper":
+            return
+        import shlex, os, tempfile
+        log.info("⚡ Pré-génération du cache TTS (%d réponses)...", len(responses))
+        for text in responses:
+            if not text or text in self._cache:
+                continue
+            try:
+                tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                tmp_path = tmp.name
+                tmp.close()
+                cmd = (
+                    f'echo {shlex.quote(text)} | '
+                    f'{shlex.quote(cfg.PIPER_BINARY)} '
+                    f'--model {shlex.quote(cfg.PIPER_MODEL)} '
+                    f'--output_file {tmp_path}'
+                )
+                subprocess.run(cmd, shell=True, check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._cache[text] = tmp_path
+                log.debug("  ✓ Mis en cache : %s", text[:40])
+            except Exception as e:
+                log.warning("Erreur cache TTS pour '%s': %s", text[:30], e)
+        log.info("✅ Cache TTS prêt (%d entrées).", len(self._cache))
+
     def _speak_piper(self, text: str):
         import subprocess
         import shlex
-        # Piper lit sur stdin, joue le WAV via aplay
+        import tempfile
+        import os
+
+        # Utilisation d'un fichier temporaire pour une meilleure compatibilité Bluetooth/Pulse
+        # Piper génère un fichier WAV complet si on utilise --output_file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+            tmp_path = tmp_wav.name
+
         cmd_piper = (
             f'echo {shlex.quote(text)} | '
             f'{shlex.quote(cfg.PIPER_BINARY)} '
             f'--model {shlex.quote(cfg.PIPER_MODEL)} '
-            f'--output_raw | '
-            f'aplay -D {shlex.quote(cfg.AUDIO_OUTPUT_DEVICE)} -r 22050 -f S16_LE -t raw -'
+            f'--output_file {tmp_path}'
         )
+        
         try:
             subprocess.run(cmd_piper, shell=True, check=True)
-        except subprocess.CalledProcessError as e:
+            # paplay gère PulseAudio nativement (meilleur support Bluetooth/systemd)
+            # aplay -D pour les autres périphériques ALSA
+            if cfg.AUDIO_OUTPUT_DEVICE == "pulse":
+                play_cmd = f'paplay {tmp_path}'
+            else:
+                play_cmd = f'aplay -D {shlex.quote(cfg.AUDIO_OUTPUT_DEVICE)} {tmp_path}'
+            subprocess.run(play_cmd, shell=True, check=True)
+        except Exception as e:
             log.error("Erreur Piper : %s — bascule pyttsx3", e)
             self._speak_pyttsx3(text)
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except:
+                    pass
 
     def _speak_pyttsx3(self, text: str):
         self._engine.say(text)
         self._engine.runAndWait()
+
+    def warmup(self, ack_text: str = "Oui ?") -> Optional[str]:
+        """Pré-génère le son d'acquittement et retourne le chemin du fichier."""
+        if self._mode != "piper":
+            return None
+        import shlex, os, tempfile
+        try:
+            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+            cmd = (
+                f'echo {shlex.quote(ack_text)} | '
+                f'{shlex.quote(cfg.PIPER_BINARY)} '
+                f'--model {shlex.quote(cfg.PIPER_MODEL)} '
+                f'--output_file {tmp_path}'
+            )
+            subprocess.run(cmd, shell=True, check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            log.info("🔊 Son d'acquittement pré-généré : %s", tmp_path)
+            return tmp_path
+        except Exception as e:
+            log.warning("Impossible de pré-générer l'acquittement : %s", e)
+            return None
+
+    def play_file(self, wav_path: str):
+        """Joue un fichier WAV pré-généré."""
+        import shlex, subprocess
+        try:
+            if cfg.AUDIO_OUTPUT_DEVICE == "pulse":
+                subprocess.run(["paplay", wav_path], check=True)
+            else:
+                subprocess.run(["aplay", "-D", cfg.AUDIO_OUTPUT_DEVICE, wav_path], check=True)
+        except Exception as e:
+            log.error("Erreur lecture audio : %s", e)
+
+    def speak_streaming(self, sentence_generator):
+        """
+        Synthétise et joue les phrases au fur et à mesure qu'elles arrivent du LLM.
+        Réduit la latence perçue car on commence à parler dès la 1ère phrase.
+        """
+        if self._mode == "pyttsx3":
+            # pyttsx3 ne supporte pas le streaming, on accumule
+            full = " ".join(sentence_generator)
+            self._speak_pyttsx3(full)
+            return
+
+        import shlex, os, tempfile
+        for sentence in sentence_generator:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                tmp_path = f.name
+            try:
+                cmd = (
+                    f'echo {shlex.quote(sentence)} | '
+                    f'{shlex.quote(cfg.PIPER_BINARY)} '
+                    f'--model {shlex.quote(cfg.PIPER_MODEL)} '
+                    f'--output_file {tmp_path}'
+                )
+                subprocess.run(cmd, shell=True, check=True,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.play_file(tmp_path)
+            except Exception as e:
+                log.error("Erreur TTS streaming phrase : %s", e)
+            finally:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except:
+                        pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -848,6 +1015,21 @@ class VoiceAssistant:
             self.tts.speak("Attention, l'intelligence artificielle n'est pas encore installée. Je fonctionnerai uniquement avec les commandes de base.")
         
         self.wake = WakeWordDetector(self.audio)  # ~5 MB
+
+        # Pré-génération du son d'acquittement pour une réponse instantanée
+        self._ack_wav = self.tts.warmup("Oui ?")
+
+        # Pré-génération des réponses fixes les plus utilisées
+        STATIC_RESPONSES = [
+            "Je n'ai pas compris, pouvez-vous répéter ?",
+            "Historique effacé.",
+            "Au revoir !",
+            "Radio arrêtée.",
+            "Il y a eu un problème avec les volets.",
+            "Désolé, je ne peux pas répondre pour le moment.",
+            f"Assistant prêt. Dites {cfg.WAKE_WORD} pour commencer.",
+        ]
+        self.tts.warmup_responses(STATIC_RESPONSES)
 
         if getattr(cfg, "SOMFY_PIN", "") and getattr(cfg, "SOMFY_TOKEN", ""):
             try:
@@ -873,20 +1055,8 @@ class VoiceAssistant:
             pass  # psutil optionnel
 
     def process_query(self, text: str) -> Optional[str]:
-        """Traite une requête texte et retourne la réponse."""
-        # 1) Commandes intégrées
-        builtin_response = self._handle_builtin_command(text)
-        if builtin_response:
-            return builtin_response
-
-        # 2) LLM
-        try:
-            response = self.llm.generate(text)
-            return response
-        except Exception as e:
-            log.error("Erreur LLM : %s", e)
-            # Message plus naturel si l'IA échoue
-            return "Désolé, je n'ai pas compris ce que vous avez dit."
+        """Gère uniquement les commandes intégrées. Retourne None si le LLM doit répondre."""
+        return self._handle_builtin_command(text)
 
 
     def run(self):
@@ -902,8 +1072,11 @@ class VoiceAssistant:
                 # ── Attente du mot d'éveil ──────────────────────────────
                 self.wake.listen_for_wake_word()
 
-                # ── Signal sonore de confirmation ───────────────────────
-                self.tts.speak("Oui ?")
+                # ── Signal sonore instantané (fichier pré-généré) ──────────
+                if self._ack_wav:
+                    self.tts.play_file(self._ack_wav)
+                else:
+                    self.tts.speak("Oui ?")
 
                 # ── Enregistrement de la requête ────────────────────────
                 wav_path = record_utterance(self.audio)
@@ -915,17 +1088,22 @@ class VoiceAssistant:
                 try:
                     text = self.stt.transcribe(wav_path)
                 finally:
-                    os.unlink(wav_path)  # supprime le fichier temporaire
+                    os.unlink(wav_path)
 
                 if not text:
                     self.tts.speak("Je n'ai pas compris, pouvez-vous répéter ?")
                     continue
 
-                # ── Traitement de la requête ───────────────────────────
-                response = self.process_query(text)
-                if response:
-                    self.tts.speak(response)
-                gc.collect()  # libère la mémoire après chaque cycle
+                # ── Traitement de la requête (streaming LLM + TTS) ──────
+                builtin = self.process_query(text)
+                if builtin:
+                    # Commande intégrée : réponse directe
+                    self.tts.speak(builtin)
+                else:
+                    # LLM en streaming : on parle dès la 1ère phrase
+                    sentence_gen = self.llm.generate_streaming(text)
+                    self.tts.speak_streaming(sentence_gen)
+                gc.collect()
 
         except KeyboardInterrupt:
             log.info("Arrêt demandé par l'utilisateur.")

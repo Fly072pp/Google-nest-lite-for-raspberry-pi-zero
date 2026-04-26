@@ -133,6 +133,8 @@ Type=simple
 User=$USER
 WorkingDirectory=$SCRIPT_DIR
 Environment="PYTHONUNBUFFERED=1"
+Environment="XDG_RUNTIME_DIR=/run/user/$(id -u $USER)"
+Environment="PULSE_RUNTIME_PATH=/run/user/$(id -u $USER)/pulse"
 $(echo -e $SOMFY_ENV)
 ExecStart=$VENV_DIR/bin/python $SCRIPT_DIR/assistant.py
 Restart=on-failure
