@@ -504,6 +504,44 @@
 
         .hidden { display: none !important; }
 
+        /* --- Log Viewer --- */
+        .log-viewer {
+            background: #020617;
+            color: #10b981;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            padding: 16px;
+            height: 500px;
+            overflow-y: auto;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            border: 1px solid var(--glass-border);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .log-viewer div {
+            margin-bottom: 2px;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+
+        .log-viewer::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .log-viewer::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+        }
+
+        .log-viewer::-webkit-scrollbar-thumb {
+            background: var(--glass-border);
+            border-radius: 4px;
+        }
+
+        .log-viewer::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
     </style>
 </head>
 <body>
@@ -543,6 +581,12 @@
                 <a href="#section-chat" class="nav-link">
                     <i data-lucide="message-square"></i>
                     Chat
+                </a>
+            </div>
+            <div class="nav-item">
+                <a href="#section-logs" class="nav-link">
+                    <i data-lucide="terminal"></i>
+                    Logs Système
                 </a>
             </div>
         </nav>
@@ -735,6 +779,17 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Section Logs -->
+                <div class="col-12" id="section-logs">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="terminal"></i> Logs Temps Réel</h2>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">journalctl -u voice-assistant -f</div>
+                        </div>
+                        <div id="logViewer" class="log-viewer"></div>
                     </div>
                 </div>
 
@@ -1051,10 +1106,42 @@
             });
         });
 
+        // --- Logs Streaming ---
+        function startLogStreaming() {
+            const logContainer = document.getElementById('logViewer');
+            if (!logContainer) return;
+
+            const eventSource = new EventSource('/api/logs');
+            
+            eventSource.onmessage = function(event) {
+                const line = event.data;
+                const wasAtBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 50;
+                
+                const span = document.createElement('div');
+                span.textContent = line;
+                logContainer.appendChild(span);
+                
+                if (wasAtBottom) {
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+                
+                // Limit lines
+                if (logContainer.children.length > 500) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+            };
+
+            eventSource.onerror = function(err) {
+                eventSource.close();
+                setTimeout(startLogStreaming, 3000);
+            };
+        }
+
         // Initial Load
         loadConfig();
         refreshBT();
         checkOllama();
+        startLogStreaming();
         setInterval(refreshBT, 10000); // Polling every 10s
 
     </script>

@@ -3,7 +3,7 @@ import os
 import signal
 import logging
 import secrets
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 import bluetooth_manager
 import subprocess
@@ -143,6 +143,32 @@ def restart_app():
             os.kill(os.getpid(), signal.SIGKILL)
     threading.Thread(target=delay_exit).start()
     return jsonify({"status": "restarting"})
+
+@app.route("/api/logs")
+def stream_logs():
+    def generate():
+        # -u voice-assistant: filter by service
+        # -f: follow (stream)
+        # -n 100: start with 100 lines of history
+        # --no-hostname: cleaner output
+        process = subprocess.Popen(
+            ["sudo", "journalctl", "-u", "voice-assistant", "-f", "-n", "100", "--no-hostname"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        try:
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    yield f"data: {line}\n\n"
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except:
+                process.kill()
+
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route("/api/system/update", methods=["POST"])
 def system_update():
