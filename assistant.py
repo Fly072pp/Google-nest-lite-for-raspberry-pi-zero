@@ -524,20 +524,28 @@ class WakeWordDetector:
         except Exception as e:
             log.warning(f"Erreur lors du téléchargement automatique des modèles : {e}")
 
-        # Les modèles intégrés sont téléchargés automatiquement au premier lancement
-        # Mots disponibles : hey_google, alexa, hey_jarvis, hey_mycroft, ok_nabu…
+        # Tentative d'initialisation avec TFLite (recommandé sur Pi Zero)
+        # Sinon repli sur ONNX
         try:
+            log.info("Initialisation openWakeWord (framework: tflite)...")
             self._model = Model(
                 wakeword_models=[cfg.WAKE_WORD.lower()],
-                inference_framework="onnx",
+                inference_framework="tflite",
             )
         except Exception as e:
-            log.error(f"Erreur lors de l'initialisation d'openWakeWord : {e}")
-            log.info("Tentative de chargement du modèle par défaut 'hey_google'...")
-            self._model = Model(
-                wakeword_models=["hey_google"],
-                inference_framework="onnx",
-            )
+            log.warning(f"Échec TFLite, tentative ONNX : {e}")
+            try:
+                self._model = Model(
+                    wakeword_models=[cfg.WAKE_WORD.lower()],
+                    inference_framework="onnx",
+                )
+            except Exception as e2:
+                log.error(f"Erreur fatale initialisation openWakeWord : {e2}")
+                # Fallback ultime sur hey_google
+                self._model = Model(
+                    wakeword_models=["hey_google"],
+                    inference_framework="tflite",
+                )
         
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
@@ -1014,7 +1022,10 @@ class VoiceAssistant:
             log.error("❌ L'IA (LLM) n'est pas installée ou le modèle est manquant.")
             self.tts.speak("Attention, l'intelligence artificielle n'est pas encore installée. Je fonctionnerai uniquement avec les commandes de base.")
         
-        self.wake = WakeWordDetector(self.audio)  # ~5 MB
+        
+        # Libération RAM avant d'attaquer le mot d'éveil (ONNX/TFLite sont gourmands)
+        gc.collect()
+        self.wake = WakeWordDetector(self.audio)  # ~5-20 MB
 
         # Pré-génération du son d'acquittement pour une réponse instantanée
         self._ack_wav = self.tts.warmup("Oui ?")
