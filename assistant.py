@@ -514,38 +514,41 @@ class WakeWordDetector:
     """
 
     def __init__(self, audio: AudioManager):
-        from openwakeword.model import Model
-        import openwakeword.utils
+        try:
+            from openwakeword.model import Model
+            import openwakeword.utils
+        except ImportError:
+            log.error("❌ openWakeWord n'est pas installé. La détection du mot d'éveil est désactivée.")
+            self._model = None
+            return
 
-        # S'assurer que les modèles sont téléchargés (requis pour openwakeword >= 0.6.0)
+        # S'assurer que les modèles sont téléchargés
         try:
             log.info("Vérification des modèles openWakeWord...")
             openwakeword.utils.download_models()
         except Exception as e:
             log.warning(f"Erreur lors du téléchargement automatique des modèles : {e}")
 
-        # Tentative d'initialisation avec TFLite (recommandé sur Pi Zero)
-        # Sinon repli sur ONNX
-        try:
-            log.info("Initialisation openWakeWord (framework: tflite)...")
-            self._model = Model(
-                wakeword_models=[cfg.WAKE_WORD.lower()],
-                inference_framework="tflite",
-            )
-        except Exception as e:
-            log.warning(f"Échec TFLite, tentative ONNX : {e}")
+        # Tentative d'initialisation
+        # Sur Raspberry Pi Zero 2W, ONNX est souvent plus stable si onnxruntime est bien installé
+        frameworks = ["onnx", "tflite"]
+        self._model = None
+        
+        for fw in frameworks:
             try:
+                log.info(f"Initialisation openWakeWord (framework: {fw})...")
                 self._model = Model(
                     wakeword_models=[cfg.WAKE_WORD.lower()],
-                    inference_framework="onnx",
+                    inference_framework=fw,
                 )
-            except Exception as e2:
-                log.error(f"Erreur fatale initialisation openWakeWord : {e2}")
-                # Fallback ultime sur hey_google
-                self._model = Model(
-                    wakeword_models=["hey_google"],
-                    inference_framework="tflite",
-                )
+                if self._model:
+                    log.info(f"✅ openWakeWord initialisé avec succès ({fw})")
+                    break
+            except Exception as e:
+                log.warning(f"Échec openWakeWord avec {fw} : {e}")
+
+        if not self._model:
+            log.error("❌ Impossible d'initialiser openWakeWord avec aucun framework.")
         
         self._audio = audio
         self._threshold = cfg.WAKE_WORD_THRESHOLD
@@ -556,6 +559,11 @@ class WakeWordDetector:
 
     def listen_for_wake_word(self) -> bool:
         """Bloque jusqu'à la détection du mot d'éveil. Retourne True."""
+        if not self._model:
+            log.error("Détection désactivée (erreur d'initialisation).")
+            time.sleep(10)
+            return False
+
         stream = self._audio.open_input_stream(frames_per_buffer=cfg.CHUNK_SIZE)
         # Réinitialise les scores pour éviter les déclenchements résiduels
         self._model.reset()
@@ -638,17 +646,21 @@ class WhisperTranscriber:
     """
 
     def __init__(self):
-        log.info("Chargement de Whisper (%s / %s)…", cfg.WHISPER_MODEL, cfg.WHISPER_COMPUTE_TYPE)
-        from faster_whisper import WhisperModel
-        self._model = WhisperModel(
-            cfg.WHISPER_MODEL,
-            device=cfg.WHISPER_DEVICE,
-            compute_type=cfg.WHISPER_COMPUTE_TYPE,
-            download_root=str(Path.home() / ".cache" / "whisper"),
-            cpu_threads=cfg.LLM_N_THREADS,
-            num_workers=1,
-        )
-        log.info("Whisper prêt.")
+        try:
+            log.info("Chargement de Whisper (%s / %s)…", cfg.WHISPER_MODEL, cfg.WHISPER_COMPUTE_TYPE)
+            from faster_whisper import WhisperModel
+            self._model = WhisperModel(
+                cfg.WHISPER_MODEL,
+                device=cfg.WHISPER_DEVICE,
+                compute_type=cfg.WHISPER_COMPUTE_TYPE,
+                download_root=str(Path.home() / ".cache" / "whisper"),
+                cpu_threads=cfg.LLM_N_THREADS,
+                num_workers=1,
+            )
+            log.info("Whisper prêt.")
+        except Exception as e:
+            log.error(f"❌ Erreur lors du chargement de Whisper : {e}")
+            self._model = None
 
     def transcribe(self, wav_path: str) -> str:
         """Transcrit un fichier WAV et retourne le texte."""

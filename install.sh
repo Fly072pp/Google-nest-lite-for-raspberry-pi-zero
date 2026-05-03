@@ -34,49 +34,77 @@ sudo usermod -aG systemd-journal $USER
 # Autoriser le redémarrage du service sans mot de passe (pour le dashboard)
 echo "$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart voice-assistant" | sudo tee /etc/sudoers.d/voice-assistant > /dev/null
 
+# ── 1.2) Nettoyage optionnel ────────────────────────────────────────────────
+if [ -d "$VENV_DIR" ]; then
+    read -p "Un environnement virtuel existe déjà. Voulez-vous le supprimer pour une installation propre ? (o/N) : " clean_env
+    if [[ "$clean_env" =~ ^[oO]$ ]]; then
+        echo "  → Suppression de l'ancien environnement virtuel..."
+        rm -rf "$VENV_DIR"
+    fi
+fi
+
 # ── 2) Environnement virtuel Python ───────────────────────────────────────
 echo "[2/7] Création de l'environnement virtuel Python…"
 python3 -m venv "$VENV_DIR"
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 
-pip install --upgrade pip wheel
+pip install --upgrade pip wheel setuptools
 
 # ── 3) Bibliothèques Python ────────────────────────────────────────────────
-echo "[3/6] Installation des bibliothèques Python (requirements.txt)…"
+echo "[3/7] Installation des bibliothèques Python..."
 
-# Fix pour Raspberry Pi : tflite-runtime est plus léger et stable pour openWakeWord
-# onnxruntime est conservé en optionnel
-pip install tflite-runtime
-pip install onnxruntime || true
-# Installer openwakeword sans dépendances pour éviter l'erreur tflite-runtime
-pip install openwakeword --no-deps
+# Installation des dépendances de base
+pip install pyaudio requests Flask psutil pexpect pychromecast wakeonlan numpy==1.26.4
 
-pip install -r requirements.txt
-
-# ── 4) Piper TTS (binaire ARM64 + voix française) ─────────────────────────
-echo "[4/5] Installation de Piper TTS…"
-mkdir -p "$PIPER_DIR"
-PIPER_VERSION="2023.11.14-2"
-PIPER_ARCHIVE="piper_linux_aarch64.tar.gz"
-
-if [ ! -f "$PIPER_DIR/piper" ]; then
-    wget -q --show-progress \
-        "https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}/${PIPER_ARCHIVE}" \
-        -O /tmp/piper.tar.gz
-    tar -xzf /tmp/piper.tar.gz -C "$PIPER_DIR" --strip-components=1
-    rm /tmp/piper.tar.gz
+# Choix de l'installation des composants d'IA
+INSTALL_AI=false
+read -p "Voulez-vous installer les composants d'IA (Reconnaissance vocale, Wake Word, TTS) ? (o/N) : " install_ai
+if [[ "$install_ai" =~ ^[oO]$ ]]; then
+    INSTALL_AI=true
+    echo "  → Installation des composants d'IA..."
+    
+    # Whisper et dépendances
+    pip install faster-whisper openai
+    
+    # Fix spécifique pour Raspberry Pi Zero 2W / ARM64
+    # On force une version stable de onnxruntime pour éviter les crashs C++ (std::vector out of bounds)
+    echo "  → Installation de l'inference engine (ONNX/TFLite)..."
+    pip install onnxruntime==1.20.0
+    
+    # openWakeWord sans ses dépendances automatiques pour éviter de casser onnxruntime
+    pip install openwakeword --no-deps
 fi
 
-# Voix française (upmc-medium ~60 MB)
-PIPER_VOICE="fr_FR-upmc-medium"
-if [ ! -f "$PIPER_DIR/${PIPER_VOICE}.onnx" ]; then
-    wget -q --show-progress \
-        "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/${PIPER_VOICE}.onnx" \
-        -O "$PIPER_DIR/${PIPER_VOICE}.onnx"
-    wget -q \
-        "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/${PIPER_VOICE}.onnx.json" \
-        -O "$PIPER_DIR/${PIPER_VOICE}.onnx.json"
+pip install -r requirements.txt || true
+
+# ── 4) Piper TTS (Optionnel) ─────────────────────────
+if [ "$INSTALL_AI" = true ]; then
+    echo "[4/5] Installation de Piper TTS…"
+    mkdir -p "$PIPER_DIR"
+    PIPER_VERSION="2023.11.14-2"
+    PIPER_ARCHIVE="piper_linux_aarch64.tar.gz"
+
+    if [ ! -f "$PIPER_DIR/piper" ]; then
+        wget -q --show-progress \
+            "https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}/${PIPER_ARCHIVE}" \
+            -O /tmp/piper.tar.gz
+        tar -xzf /tmp/piper.tar.gz -C "$PIPER_DIR" --strip-components=1
+        rm /tmp/piper.tar.gz
+    fi
+
+    # Voix française (upmc-medium ~60 MB)
+    PIPER_VOICE="fr_FR-upmc-medium"
+    if [ ! -f "$PIPER_DIR/${PIPER_VOICE}.onnx" ]; then
+        wget -q --show-progress \
+            "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/${PIPER_VOICE}.onnx" \
+            -O "$PIPER_DIR/${PIPER_VOICE}.onnx"
+        wget -q \
+            "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/upmc/medium/${PIPER_VOICE}.onnx.json" \
+            -O "$PIPER_DIR/${PIPER_VOICE}.onnx.json"
+    fi
+else
+    echo "[4/5] Saut de l'installation de Piper TTS (Mode Lite)."
 fi
 
 # ── 7) Configuration Somfy TaHoma (Optionnel) ──────────────────────────────
