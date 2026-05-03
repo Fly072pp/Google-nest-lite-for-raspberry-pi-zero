@@ -57,24 +57,6 @@ echo "[3/7] Installation des bibliothèques Python..."
 # Installation des dépendances de base
 pip install pyaudio requests Flask psutil pexpect pychromecast wakeonlan numpy==1.26.4
 
-# Choix de l'installation des composants d'IA
-INSTALL_AI=false
-read -p "Voulez-vous installer les composants d'IA (Reconnaissance vocale, Wake Word, TTS) ? (o/N) : " install_ai
-if [[ "$install_ai" =~ ^[oO]$ ]]; then
-    INSTALL_AI=true
-    echo "  → Installation des composants d'IA..."
-    
-    # Whisper et dépendances
-    pip install faster-whisper openai
-    
-    # Fix spécifique pour Raspberry Pi Zero 2W / ARM64
-    # On force une version stable de onnxruntime pour éviter les crashs C++ (std::vector out of bounds)
-    echo "  → Installation de l'inference engine (ONNX/TFLite)..."
-    pip install onnxruntime==1.20.0
-    
-    # openWakeWord sans ses dépendances automatiques pour éviter de casser onnxruntime
-    pip install openwakeword --no-deps
-fi
 
 pip install -r requirements.txt || true
 
