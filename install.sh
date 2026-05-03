@@ -20,11 +20,12 @@ echo "[1/7] Installation des paquets système…"
 sudo apt-get update -qq
 sudo apt-get install -y \
     python3-pip python3-venv python3-dev \
+    python3-numpy python3-scipy python3-sklearn \
     portaudio19-dev libsndfile1 \
     espeak-ng espeak-ng-data \
     alsa-utils sox bluez bluez-tools bluez-alsa-utils \
     git wget curl cmake \
-    libopenblas-dev          # accélération BLAS pour llama-cpp
+    libopenblas-dev
 
 # ── 1.1) Groupes utilisateur ───────────────────────────────────────────────
 sudo usermod -aG bluetooth $USER
@@ -44,21 +45,39 @@ if [ -d "$VENV_DIR" ]; then
 fi
 
 # ── 2) Environnement virtuel Python ───────────────────────────────────────
-echo "[2/7] Création de l'environnement virtuel Python…"
-python3 -m venv "$VENV_DIR"
+echo "[2/7] Création de l'environnement virtuel Python (avec accès aux paquets système)..."
+# --system-site-packages permet d'utiliser numpy/scipy/sklearn installés via apt
+python3 -m venv --system-site-packages "$VENV_DIR"
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 
 pip install --upgrade pip wheel setuptools
 
-# ── 3) Bibliothèques Python ────────────────────────────────────────────────
-echo "[3/7] Installation des bibliothèques Python..."
-
 # Installation des dépendances de base
-pip install pyaudio requests Flask psutil pexpect pychromecast wakeonlan numpy==1.26.4
+# On utilise --prefer-binary pour éviter toute compilation lente sur le Pi
+pip install --prefer-binary pyaudio requests Flask psutil pexpect pychromecast wakeonlan
 
+# ── 3.1) Installation des composants d'IA ──────────────────────────────────
+INSTALL_AI=false
+read -p "Voulez-vous installer les composants d'IA (Reconnaissance vocale, Wake Word, TTS) ? (o/N) : " install_ai
+if [[ "$install_ai" =~ ^[oO]$ ]]; then
+    INSTALL_AI=true
+    echo "  → Installation des composants d'IA..."
+    
+    # Whisper et dépendances
+    pip install --prefer-binary faster-whisper openai
+    
+    # Fix spécifique pour Raspberry Pi Zero 2W / ARM64
+    # On force une version stable de onnxruntime pour éviter les crashs C++
+    echo "  → Installation de l'inference engine (ONNX)..."
+    pip install --prefer-binary onnxruntime==1.20.0
+    
+    # openWakeWord sans ses dépendances automatiques pour éviter de casser onnxruntime
+    pip install --prefer-binary openwakeword --no-deps
+fi
 
-pip install -r requirements.txt || true
+echo "[3/7] Finalisation des dépendances..."
+pip install --prefer-binary -r requirements.txt || true
 
 # ── 4) Piper TTS (Optionnel) ─────────────────────────
 if [ "$INSTALL_AI" = true ]; then
