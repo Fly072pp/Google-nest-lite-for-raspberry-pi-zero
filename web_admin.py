@@ -8,6 +8,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import bluetooth_manager
 import subprocess
 import threading
+import requests
+
+MODELS_DIR = os.path.expanduser("~/models")
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+download_status = {"ongoing": False, "filename": "", "progress": 0, "error": None}
 
 CONFIG_FILE = "config.json"
 
@@ -64,8 +70,10 @@ def require_login():
     if "ADMIN_USERNAME" not in config or "ADMIN_PASSWORD_HASH" not in config:
         return redirect(url_for('setup'))
         
-    # Si l'utilisateur n'est pas connecté, redirect login
+    # Si l'utilisateur n'est pas connecté, redirect login (ou 401 pour API)
     if not session.get('logged_in'):
+        if request.path.startswith('/api/'):
+            return jsonify({"error": "Unauthorized"}), 401
         return redirect(url_for('login'))
 
 @app.route("/setup", methods=["GET", "POST"])
@@ -299,6 +307,92 @@ def ollama_install():
     thread = threading.Thread(target=run_install)
     thread.start()
     return jsonify({"status": "started"})
+
+# --- Local Models API ---
+
+@app.route("/api/models/local", methods=["GET"])
+def list_local_models():
+    try:
+        models = []
+        for f in os.listdir(MODELS_DIR):
+            if f.endswith(".gguf"):
+                path = os.path.join(MODELS_DIR, f)
+                size_mb = round(os.path.getsize(path) / (1024 * 1024), 2)
+                models.append({"filename": f, "size_mb": size_mb})
+        return jsonify(models)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/models/status", methods=["GET"])
+def get_models_status():
+    llama_cpp_installed = False
+    try:
+        # Check if llama_cpp can be imported
+        subprocess.run(["python3", "-c", "import llama_cpp"], check=True, capture_output=True)
+        llama_cpp_installed = True
+    except:
+        pass
+    
+    return jsonify({
+        "llama_cpp_installed": llama_cpp_installed,
+        "download": download_status
+    })
+
+@app.route("/api/models/download", methods=["POST"])
+def download_model():
+    global download_status
+    if download_status["ongoing"]:
+        return jsonify({"error": "Download already in progress"}), 400
+    
+    data = request.json
+    url = data.get("url")
+    filename = data.get("filename")
+    
+    if not url or not filename:
+        return jsonify({"error": "URL and filename required"}), 400
+
+    def do_download(url, filename):
+        global download_status
+        download_status = {"ongoing": True, "filename": filename, "progress": 0, "error": None}
+        try:
+            path = os.path.join(MODELS_DIR, filename)
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            download_status["progress"] = int((downloaded / total_size) * 100)
+            
+            download_status["ongoing"] = False
+            download_status["progress"] = 100
+        except Exception as e:
+            logging.error(f"Download failed: {e}")
+            download_status["ongoing"] = False
+            download_status["error"] = str(e)
+
+    threading.Thread(target=do_download, args=(url, filename)).start()
+    return jsonify({"status": "started"})
+
+@app.route("/api/models/delete", methods=["POST"])
+def delete_model():
+    data = request.json
+    filename = data.get("filename")
+    if not filename:
+        return jsonify({"error": "Filename required"}), 400
+    
+    path = os.path.join(MODELS_DIR, filename)
+    if os.path.exists(path) and filename.endswith(".gguf"):
+        os.remove(path)
+        return jsonify({"status": "success"})
+    else:
+        return jsonify({"error": "File not found"}), 404
 
 # --- Chat API ---
 

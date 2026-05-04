@@ -750,20 +750,64 @@
                             <div class="col-4 form-group">
                                 <label>Mode LLM</label>
                                 <select id="LLM_MODE" name="LLM_MODE">
-                                    <option value="local">Local (Internal)</option>
+                                    <option value="local">Local (llama-cpp)</option>
                                     <option value="api">Distant (Ollama/API)</option>
                                 </select>
                             </div>
                             <div class="col-4 form-group">
-                                <label>Tokens Max</label>
-                                <input type="number" id="LLM_MAX_TOKENS" name="LLM_MAX_TOKENS">
+                                <label>Chemin Modèle Local</label>
+                                <input type="text" id="LLM_MODEL_PATH" name="LLM_MODEL_PATH" placeholder="/home/pi/models/model.gguf">
+                            </div>
+                        </div>
+
+                        <!-- Modèles Locaux -->
+                        <div style="margin-top: 24px;">
+                            <label>Gestion des Modèles Locaux (GGUF)</label>
+                            <div id="localModelsList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                                <!-- Dynamic list -->
+                            </div>
+
+                            <div style="padding: 16px; background: rgba(255,255,255,0.03); border-radius: 16px; border: 1px dashed var(--glass-border);">
+                                <h4 style="margin: 0 0 12px 0; font-size: 0.9rem;">Installation Rapide</h4>
+                                <div class="grid" style="gap: 12px;">
+                                    <div class="col-6">
+                                        <div style="padding: 12px; background: var(--glass-bg); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 0.85rem;">SmolLM2 135M</div>
+                                                <div style="font-size: 0.7rem; color: var(--text-secondary);">Ultra-léger (145MB)</div>
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="installModel('SmolLM2-135M-Instruct-Q8_0.gguf', 'https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q8_0.gguf')">Installer</button>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div style="padding: 12px; background: var(--glass-bg); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <div style="font-weight: 600; font-size: 0.85rem;">Llama 3.2 1B</div>
+                                                <div style="font-size: 0.7rem; color: var(--text-secondary);">Performant (700MB)</div>
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="installModel('Llama-3.2-1B-Instruct-Q4_K_M.gguf', 'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf')">Installer</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="downloadProgress" class="hidden" style="margin-top: 16px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem;">
+                                        <span id="downloadFilename">Modèle...</span>
+                                        <span id="downloadPercent">0%</span>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+                                        <div id="downloadBar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.3s;"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
-                        <div style="margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 16px;">
+                        <div style="margin-top: 24px; padding: 20px; background: rgba(16, 185, 129, 0.05); border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.1);">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div>
-                                    <h4 style="margin: 0;">Serveur Ollama</h4>
+                                    <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                                        <i data-lucide="server" style="width: 16px;"></i>
+                                        Serveur Ollama
+                                    </h4>
                                     <p id="ollamaStatus" class="text-secondary" style="font-size: 0.8rem; margin: 4px 0 0;">Chargement...</p>
                                 </div>
                                 <div id="ollamaAction"></div>
@@ -824,8 +868,12 @@
         // --- Data Loading ---
         function loadConfig() {
             fetch('/api/config')
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 401) return; // Silent fail or redirect
+                    return res.json();
+                })
                 .then(data => {
+                    if (!data) return;
                     for (const key in data) {
                         const el = document.getElementById(key);
                         if (el) {
@@ -840,8 +888,12 @@
         // --- Bluetooth Logic ---
         function refreshBT() {
             fetch('/api/bluetooth/status')
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 401) return;
+                    return res.json();
+                })
                 .then(data => {
+                    if (!data) return;
                     const statusArea = document.getElementById('active-bt-area');
                     const statusEl = document.getElementById('btStatus');
                     const pairedList = document.getElementById('pairedDevicesList');
@@ -1044,18 +1096,135 @@
         }
 
         // --- System ---
+        // --- IA & Models ---
+        function refreshLocalModels() {
+            fetch('/api/models/local')
+                .then(res => {
+                    if (res.status === 401) return;
+                    return res.json();
+                })
+                .then(models => {
+                    if (!models) return;
+                    const list = document.getElementById('localModelsList');
+                    list.innerHTML = '';
+                    if (models.length === 0) {
+                        list.innerHTML = '<p class="text-secondary" style="font-size: 0.85rem; text-align: center; padding: 10px;">Aucun modèle local trouvé.</p>';
+                        return;
+                    }
+                    models.forEach(m => {
+                        const div = document.createElement('div');
+                        div.style = "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255,255,255,0.05); border-radius: 12px;";
+                        div.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <i data-lucide="file-code" style="width: 16px; color: var(--primary);"></i>
+                                <div>
+                                    <div style="font-size: 0.9rem; font-weight: 500;">${m.filename}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">${m.size_mb} MB</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="selectModel('${m.filename}')" title="Utiliser ce modèle">Sélectionner</button>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="deleteModel('${m.filename}')" title="Supprimer"><i data-lucide="trash-2" style="width: 14px;"></i></button>
+                            </div>
+                        `;
+                        list.appendChild(div);
+                    });
+                    lucide.createIcons();
+                });
+        }
+
+        function selectModel(filename) {
+            const path = `~/models/${filename}`.replace('~', '/home/' + window.location.hostname.split('.')[0] || 'pi');
+            // Actually better to just use relative ~/ or let the user handle the path if different
+            // But usually it's /home/pi/models/
+            // Let's just set it to the full path assuming /home/pi/
+            document.getElementById('LLM_MODEL_PATH').value = `/home/${document.location.hostname === 'localhost' ? 'admin' : 'pi'}/models/${filename}`;
+            document.getElementById('LLM_MODE').value = 'local';
+            notify("Modèle sélectionné. N'oubliez pas de sauvegarder.");
+        }
+
+        async function installModel(filename, url) {
+            if (!confirm(`Voulez-vous télécharger ${filename} ?`)) return;
+            
+            try {
+                const res = await fetch('/api/models/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, url })
+                });
+                const data = await res.json();
+                if (data.status === "started") {
+                    notify("Téléchargement démarré", "primary");
+                    checkDownloadStatus();
+                } else {
+                    notify("Erreur: " + data.error, "danger");
+                }
+            } catch (e) {
+                notify("Erreur réseau", "danger");
+            }
+        }
+
+        function checkDownloadStatus() {
+            fetch('/api/models/status')
+                .then(res => res.json())
+                .then(data => {
+                    const progressArea = document.getElementById('downloadProgress');
+                    const bar = document.getElementById('downloadBar');
+                    const percent = document.getElementById('downloadPercent');
+                    const filename = document.getElementById('downloadFilename');
+
+                    if (data.download && data.download.ongoing) {
+                        progressArea.classList.remove('hidden');
+                        bar.style.width = data.download.progress + '%';
+                        percent.textContent = data.download.progress + '%';
+                        filename.textContent = `Téléchargement de ${data.download.filename}...`;
+                        setTimeout(checkDownloadStatus, 2000);
+                    } else {
+                        if (data.download && data.download.progress === 100) {
+                            notify("Téléchargement terminé !", "success");
+                            refreshLocalModels();
+                        } else if (data.download && data.download.error) {
+                            notify("Erreur de téléchargement: " + data.download.error, "danger");
+                        }
+                        progressArea.classList.add('hidden');
+                    }
+                });
+        }
+
+        async function deleteModel(filename) {
+            if (!confirm(`Supprimer ${filename} ?`)) return;
+            const res = await fetch('/api/models/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            });
+            if (res.ok) {
+                notify("Modèle supprimé");
+                refreshLocalModels();
+            }
+        }
+
         function checkOllama() {
             fetch('/api/ollama/status')
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 401) throw new Error("Unauthorized");
+                    return res.json();
+                })
                 .then(data => {
                     const statusEl = document.getElementById('ollamaStatus');
                     const actionEl = document.getElementById('ollamaAction');
                     if (data.status === "installed") {
                         statusEl.innerHTML = `Connecté (Version: ${data.version})`;
                         statusEl.style.color = "var(--success)";
+                        actionEl.innerHTML = '';
                     } else {
                         statusEl.innerHTML = "Non installé";
                         actionEl.innerHTML = `<button type="button" class="btn btn-primary btn-sm" onclick="installOllama()">Installer</button>`;
+                    }
+                })
+                .catch(err => {
+                    if (err.message === "Unauthorized") {
+                        document.getElementById('ollamaStatus').innerHTML = "Session expirée. Rechargez la page.";
                     }
                 });
         }
@@ -1161,8 +1330,11 @@
         loadConfig();
         refreshBT();
         checkOllama();
+        refreshLocalModels();
+        checkDownloadStatus();
         startLogStreaming();
         setInterval(refreshBT, 10000); // Polling every 10s
+        setInterval(refreshLocalModels, 30000); // Polling models every 30s
 
     </script>
 </body>

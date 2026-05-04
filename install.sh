@@ -76,6 +76,7 @@ if [[ "$install_ai" =~ ^[oO]$ ]]; then
     pip install --prefer-binary openwakeword --no-deps
 fi
 
+
 echo "[3/7] Finalisation des dépendances..."
 pip install --prefer-binary -r requirements.txt || true
 
