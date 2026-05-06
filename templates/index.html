@@ -660,12 +660,13 @@
                                 <div class="bt-info">
                                     <div class="bt-icon"><i data-lucide="zap"></i></div>
                                     <div class="bt-details">
-                                        <h4>Mise à jour</h4>
-                                        <p id="updateStatus">Vérification...</p>
+                                        <h4>Version Système</h4>
+                                        <p id="systemVersion">Chargement...</p>
                                     </div>
-                                </div>
-                                <button type="button" class="btn btn-primary btn-sm" id="btnUpdate">Check</button>
+                                 </div>
+                                 <button type="button" class="btn btn-primary btn-sm" id="btnUpdate">Update</button>
                             </div>
+                            <p id="updateStatus" class="text-secondary" style="font-size: 0.75rem; margin-top: -12px; margin-bottom: 20px; padding-left: 56px;"></p>
                             <div class="form-group">
                                 <label>Moteur Whisper</label>
                                 <select id="WHISPER_MODEL" name="WHISPER_MODEL">
@@ -1272,13 +1273,36 @@
             }
         });
 
+        function checkVersion() {
+            fetch('/api/system/version')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('systemVersion').textContent = data.version;
+                });
+        }
+
         document.getElementById('btnUpdate').addEventListener('click', () => {
-            notify("Vérification des mises à jour...", "primary");
+            const btn = document.getElementById('btnUpdate');
+            const status = document.getElementById('updateStatus');
+            btn.disabled = true;
+            btn.innerHTML = `<div class="loader"></div>`;
+            status.textContent = "Recherche de mises à jour...";
+
             fetch('/api/system/update', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('updateStatus').textContent = data.message;
-                    notify(data.message);
+                    btn.disabled = false;
+                    btn.innerHTML = `Update`;
+                    status.textContent = data.message;
+                    notify(data.message, data.status === "error" ? "danger" : "success");
+                    if (data.status === "success") {
+                        checkVersion();
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.innerHTML = `Update`;
+                    notify("Erreur lors de la mise à jour", "danger");
                 });
         });
 
@@ -1330,6 +1354,7 @@
         loadConfig();
         refreshBT();
         checkOllama();
+        checkVersion();
         refreshLocalModels();
         checkDownloadStatus();
         startLogStreaming();

@@ -181,21 +181,44 @@ def stream_logs():
 @app.route("/api/system/update", methods=["POST"])
 def system_update():
     try:
-        # On tente de récupérer les dernières modifs sans écraser les fichiers locaux si possible
-        # Mais git pull échouera s'il y a des conflits.
-        log.info("Tentative de mise à jour via Git...")
-        # Stash local changes to avoid pull conflicts
+        log.info("Vérification des mises à jour...")
+        # 1. Fetch
+        subprocess.run(["git", "fetch"], capture_output=True, timeout=20)
+        
+        # 2. Check if we are behind
+        status = subprocess.run(["git", "status", "-uno"], capture_output=True, text=True)
+        if "Your branch is up to date" in status.stdout:
+            return jsonify({"status": "up_to_date", "message": "Déjà à jour."})
+        
+        # 3. Pull
+        log.info("Tentative de pull...")
+        # On stash pour éviter les conflits avec les modifs locales (ex: assistant.py)
         subprocess.run(["git", "stash"], capture_output=True)
+        
         result = subprocess.run(["git", "pull"], capture_output=True, text=True, timeout=30)
+        
+        # On tente de restaurer les modifs locales
+        subprocess.run(["git", "stash", "pop"], capture_output=True)
+        
         if result.returncode == 0:
-            if "Already up to date" in result.stdout:
-                return jsonify({"status": "up_to_date", "message": "Déjà à jour."})
             return jsonify({"status": "success", "message": "Mise à jour effectuée. Redémarrage nécessaire."})
         else:
-            # Si erreur, on tente un fetch pour voir s'il y a vraiment des trucs
-            return jsonify({"status": "error", "message": result.stderr})
+            return jsonify({"status": "error", "message": f"Erreur lors du pull: {result.stderr}"})
+            
     except Exception as e:
+        logging.error(f"Erreur update: {e}")
         return jsonify({"status": "error", "message": str(e)})
+
+@app.route("/api/system/version", methods=["GET"])
+def get_version():
+    try:
+        # Get last commit hash and date
+        result = subprocess.run(["git", "log", "-1", "--format=%h (%cr)"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return jsonify({"version": result.stdout.strip()})
+        return jsonify({"version": "Inconnue"})
+    except:
+        return jsonify({"version": "Inconnue"})
 
 # --- Bluetooth API ---
 
