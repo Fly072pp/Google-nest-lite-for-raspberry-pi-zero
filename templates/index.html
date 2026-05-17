@@ -750,14 +750,20 @@
                             </div>
                             <div class="col-4 form-group">
                                 <label>Mode LLM</label>
-                                <select id="LLM_MODE" name="LLM_MODE">
+                                <select id="LLM_MODE" name="LLM_MODE" onchange="document.getElementById('groqSettings').style.display = this.value === 'groq' ? 'block' : 'none';">
                                     <option value="local">Local (llama-cpp)</option>
                                     <option value="api">Distant (Ollama/API)</option>
+                                    <option value="groq">Groq API (Ultra-rapide)</option>
                                 </select>
                             </div>
                             <div class="col-4 form-group">
                                 <label>Chemin Modèle Local</label>
                                 <input type="text" id="LLM_MODEL_PATH" name="LLM_MODEL_PATH" placeholder="/home/pi/models/model.gguf">
+                            </div>
+                            <div class="col-12 form-group" id="groqSettings" style="display: none;">
+                                <label>Clé API Groq</label>
+                                <input type="password" id="GROQ_API_KEY" name="GROQ_API_KEY" placeholder="gsk_..." style="width: 100%;">
+                                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">Modèle utilisé : llama3-8b-8192. Obtenez une clé gratuitement sur <a href="https://console.groq.com/keys" target="_blank" style="color: var(--primary);">console.groq.com</a>.</p>
                             </div>
                         </div>
 
@@ -881,6 +887,9 @@
                             let val = data[key];
                             if (key === "WHISPER_LANGUAGE" && val === null) val = "auto";
                             el.value = val;
+                            if (key === "LLM_MODE") {
+                                document.getElementById('groqSettings').style.display = val === 'groq' ? 'block' : 'none';
+                            }
                         }
                     }
                 });

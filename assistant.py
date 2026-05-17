@@ -89,6 +89,9 @@ class Config:
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "ollama")
     LLM_API_MODEL: str = os.getenv("LLM_API_MODEL", "smollm2:135m")
 
+    # Paramètres Groq (mode "groq")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+
     # Prompt système – gardez-le court pour économiser les tokens
     SYSTEM_PROMPT: str = (
         "Tu es un assistant vocal compact. "
@@ -685,6 +688,8 @@ class LLMEngine:
     def __init__(self):
         if cfg.LLM_MODE == "local":
             self._init_local()
+        elif cfg.LLM_MODE == "groq":
+            self._init_groq()
         else:
             self._init_api()
         self._history = []  # historique de conversation en mémoire vive
@@ -726,6 +731,22 @@ class LLMEngine:
             raise ImportError("Installez openai : pip install openai")
         self._mode = "api"
 
+    def _init_groq(self):
+        log.info("Mode LLM : Groq (llama3-8b-8192)")
+        if not cfg.GROQ_API_KEY:
+            log.error("Clé API Groq manquante.")
+            self._mode = "none"
+            return
+        try:
+            from openai import OpenAI
+            self._client = OpenAI(
+                base_url="https://api.groq.com/openai/v1",
+                api_key=cfg.GROQ_API_KEY,
+            )
+            self._mode = "groq"
+        except ImportError:
+            raise ImportError("Installez openai : pip install openai")
+
     def generate(self, user_text: str) -> str:
         """Génère une réponse à partir du texte utilisateur."""
         # Construction des messages (historique court pour économiser la RAM)
@@ -738,6 +759,8 @@ class LLMEngine:
             response = self._generate_local(messages)
         elif self._mode == "api":
             response = self._generate_api(messages)
+        elif self._mode == "groq":
+            response = self._generate_groq(messages)
         else:
             return "Désolé, mon intelligence artificielle n'est pas encore installée ou configurée."
 
@@ -770,6 +793,15 @@ class LLMEngine:
         )
         return resp.choices[0].message.content.strip()
 
+    def _generate_groq(self, messages: list) -> str:
+        resp = self._client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=messages,
+            max_tokens=cfg.LLM_MAX_TOKENS,
+            temperature=cfg.LLM_TEMPERATURE,
+        )
+        return resp.choices[0].message.content.strip()
+
     def generate_streaming(self, user_text: str):
         """Génère la réponse en streaming et yield les phrases au fur et à mesure."""
         messages = [{"role": "system", "content": cfg.SYSTEM_PROMPT}]
@@ -781,9 +813,10 @@ class LLMEngine:
         sentence_endings = re.compile(r'(?<=[.!?;])\s+')
 
         try:
-            if self._mode == "api":
+            if self._mode in ["api", "groq"]:
+                model_name = cfg.LLM_API_MODEL if self._mode == "api" else "llama3-8b-8192"
                 stream = self._client.chat.completions.create(
-                    model=cfg.LLM_API_MODEL,
+                    model=model_name,
                     messages=messages,
                     max_tokens=cfg.LLM_MAX_TOKENS,
                     temperature=cfg.LLM_TEMPERATURE,
