@@ -1169,11 +1169,17 @@ class VoiceAssistant:
                     log.warning("Aucun audio capturé, retour en attente.")
                     continue
 
+                # Libérer agressivement la mémoire avant la transcription (étape critique pour la RAM)
+                gc.collect()
+
                 # ── Transcription ───────────────────────────────────────
                 try:
                     text = self.stt.transcribe(wav_path)
                 finally:
                     os.unlink(wav_path)
+
+                # Libérer la mémoire immédiatement après la transcription
+                gc.collect()
 
                 if not text:
                     self.tts.speak("Je n'ai pas compris, pouvez-vous répéter ?")
@@ -1186,8 +1192,12 @@ class VoiceAssistant:
                     self.tts.speak(builtin)
                 else:
                     # LLM en streaming : on parle dès la 1ère phrase
-                    sentence_gen = self.llm.generate_streaming(text)
-                    self.tts.speak_streaming(sentence_gen)
+                    try:
+                        sentence_gen = self.llm.generate_streaming(text)
+                        self.tts.speak_streaming(sentence_gen)
+                    except Exception as e:
+                        log.error("Erreur lors de la génération IA (LLM) : %s", e)
+                        self.tts.speak("Désolé, je ne parviens pas à joindre le serveur d'intelligence artificielle.")
                 gc.collect()
 
         except KeyboardInterrupt:
