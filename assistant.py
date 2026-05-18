@@ -976,6 +976,8 @@ class TTSEngine:
             subprocess.run(play_cmd, shell=True, check=True)
         except Exception as e:
             log.error("Erreur Piper : %s — bascule pyttsx3", e)
+            if not hasattr(self, "_engine"):
+                self._init_pyttsx3()
             self._speak_pyttsx3(text)
         finally:
             if os.path.exists(tmp_path):
