@@ -606,6 +606,9 @@ def record_utterance(audio: AudioManager) -> Optional[str]:
     silence_limit = int(
         cfg.RECORD_SILENCE_DURATION * cfg.SAMPLE_RATE / 1024
     )
+    # On laisse jusqu'à 3 secondes à l'utilisateur pour commencer à parler
+    initial_silence_limit = int(3.0 * cfg.SAMPLE_RATE / 1024)
+    has_spoken = False
     max_chunks = int(cfg.MAX_RECORD_SECONDS * cfg.SAMPLE_RATE / 1024)
 
     try:
@@ -615,11 +618,20 @@ def record_utterance(audio: AudioManager) -> Optional[str]:
             # Calcul du RMS pour détecter le silence
             arr = np.frombuffer(data, dtype=np.int16).astype(np.float32)
             rms = np.sqrt(np.mean(arr ** 2)) / 32768.0
+            
             if rms < cfg.RECORD_SILENCE_THRESHOLD:
                 silent_chunks += 1
-                if silent_chunks >= silence_limit and len(frames) > silence_limit:
+                # Si l'utilisateur a commencé à parler, on s'arrête après le silence court
+                if has_spoken and silent_chunks >= silence_limit:
+                    break
+                # S'il n'a pas encore commencé, on attend jusqu'à initial_silence_limit
+                elif not has_spoken and silent_chunks >= initial_silence_limit:
+                    log.warning("Aucune voix détectée après le délai initial.")
                     break
             else:
+                if not has_spoken:
+                    log.debug("Voix détectée, début de l'instruction.")
+                has_spoken = True
                 silent_chunks = 0
     finally:
         stream.stop_stream()
