@@ -542,6 +542,91 @@
             background: var(--text-secondary);
         }
 
+        /* --- Switch Toggle --- */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border: 1px solid var(--glass-border);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-secondary);
+            transition: .3s;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-glow);
+            border-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+            background-color: var(--primary);
+        }
+
+        .slider.round {
+            border-radius: 22px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        /* --- Premium Range Input --- */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 15px var(--primary);
+        }
+
     </style>
 </head>
 <body>
@@ -637,6 +722,14 @@
                                 </div>
                                 <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">Utilisez "bluealsa" ou "pulse" si "default" ne fonctionne pas.</p>
                             </div>
+                            <div class="col-12 form-group">
+                                <label>Volume Système</label>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i data-lucide="volume-1" id="volumeIcon" style="color: var(--primary);"></i>
+                                    <input type="range" id="systemVolume" min="0" max="100" step="5" style="flex-grow: 1; cursor: pointer; padding: 0;">
+                                    <span id="volumeValue" style="min-width: 36px; font-weight: 600; text-align: right;">50%</span>
+                                </div>
+                            </div>
                             <div class="col-6 form-group">
                                 <label>Sensibilité</label>
                                 <input type="number" id="WAKE_WORD_THRESHOLD" name="WAKE_WORD_THRESHOLD" step="0.05" min="0" max="1">
@@ -667,6 +760,55 @@
                                  <button type="button" class="btn btn-primary btn-sm" id="btnUpdate">Update</button>
                             </div>
                             <p id="updateStatus" class="text-secondary" style="font-size: 0.75rem; margin-top: -12px; margin-bottom: 20px; padding-left: 56px;"></p>
+                            
+                            <div style="margin-bottom: 24px; border-top: 1px solid var(--glass-border); padding-top: 16px;">
+                                <label style="margin-bottom: 12px; display: block; font-weight: 600; font-size: 0.95rem;">Ressources Matérielles</label>
+                                
+                                <!-- CPU Usage -->
+                                <div style="margin-bottom: 12px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                                        <span style="color: var(--text-secondary);">Processeur (CPU)</span>
+                                        <span id="cpuUsageVal" style="font-weight: 600;">0%</span>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+                                        <div id="cpuUsageBar" style="height: 100%; width: 0%; background: var(--primary); transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- RAM Usage -->
+                                <div style="margin-bottom: 12px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                                        <span style="color: var(--text-secondary);">Mémoire Vive (RAM)</span>
+                                        <span id="ramUsageVal" style="font-weight: 600;">0% (0MB / 0MB)</span>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+                                        <div id="ramUsageBar" style="height: 100%; width: 0%; background: var(--secondary); transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- CPU Temp -->
+                                <div style="margin-bottom: 12px;" id="tempWidget" class="hidden">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                                        <span style="color: var(--text-secondary);">Température SoC</span>
+                                        <span id="cpuTempVal" style="font-weight: 600;">-- °C</span>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+                                        <div id="cpuTempBar" style="height: 100%; width: 0%; background: var(--warning); transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Disk Usage -->
+                                <div style="margin-bottom: 12px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+                                        <span style="color: var(--text-secondary);">Espace Stockage</span>
+                                        <span id="diskUsageVal" style="font-weight: 600;">0% (0GB dispo)</span>
+                                    </div>
+                                    <div style="height: 6px; background: rgba(0,0,0,0.3); border-radius: 3px; overflow: hidden;">
+                                        <div id="diskUsageBar" style="height: 100%; width: 0%; background: var(--success); transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label>Moteur Whisper</label>
                                 <select id="WHISPER_MODEL" name="WHISPER_MODEL">
@@ -823,6 +965,121 @@
                     </div>
                 </div>
 
+                <!-- Section Modules -->
+                <div class="col-12" id="section-modules">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2><i data-lucide="layers"></i> Modules & Domotique</h2>
+                        </div>
+                        <div class="grid" style="gap: 20px;">
+                            
+                            <!-- Somfy TaHoma -->
+                            <div class="col-6">
+                                <div style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; height: 100%;">
+                                    <h3 style="margin-top: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                                        <i data-lucide="home" style="color: var(--primary);"></i>
+                                        Somfy TaHoma (Volets)
+                                    </h3>
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px;">Pilotez vos volets roulants ou battants Somfy en local.</p>
+                                    
+                                    <div class="form-group">
+                                        <label>PIN de la passerelle</label>
+                                        <input type="text" id="SOMFY_PIN" name="SOMFY_PIN" placeholder="ex: 2001-1234-5678">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Adresse IP de la passerelle</label>
+                                        <input type="text" id="SOMFY_IP" name="SOMFY_IP" placeholder="Laisser vide si résolution automatique">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Jeton d'autorisation (Token)</label>
+                                        <input type="password" id="SOMFY_TOKEN" name="SOMFY_TOKEN" placeholder="Jeton d'accès local généré">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Chromecast -->
+                            <div class="col-6">
+                                <div style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; height: 100%; display: flex; flex-direction: column;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                                            <i data-lucide="tv" style="color: var(--primary);"></i>
+                                            Chromecast
+                                        </h3>
+                                        <label class="switch" style="margin: 0;">
+                                            <input type="checkbox" id="ENABLE_CHROMECAST" name="ENABLE_CHROMECAST">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px;">Lisez ou contrôlez des flux vidéos/audios par commande vocale.</p>
+                                    
+                                    <div class="form-group">
+                                        <label>Nom du Chromecast ciblé</label>
+                                        <input type="text" id="CHROMECAST_NAME" name="CHROMECAST_NAME" placeholder="ex: Télé du Salon">
+                                    </div>
+                                    <div class="form-group" style="flex-grow: 1;">
+                                        <label>Applications Chromecast (JSON)</label>
+                                        <textarea id="CHROMECAST_APPS" name="CHROMECAST_APPS" rows="3" style="font-family: monospace; font-size: 0.85rem; height: 100px; resize: vertical;" placeholder='{"YouTube": "233637DE", "Netflix": "CA5E845A", "Spotify": "CC32E5A1"}'></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Wake on LAN -->
+                            <div class="col-6">
+                                <div style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; height: 100%; display: flex; flex-direction: column;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                                            <i data-lucide="power" style="color: var(--primary);"></i>
+                                            Wake on LAN
+                                        </h3>
+                                        <label class="switch" style="margin: 0;">
+                                            <input type="checkbox" id="ENABLE_WOL" name="ENABLE_WOL">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px;">Allumez vos ordinateurs ou serveurs sur le réseau local.</p>
+                                    
+                                    <div class="form-group" style="flex-grow: 1;">
+                                        <label>Appareils et adresses MAC (JSON)</label>
+                                        <textarea id="WOL_DEVICES" name="WOL_DEVICES" rows="4" style="font-family: monospace; font-size: 0.85rem; height: 100px; resize: vertical;" placeholder='{"Mon PC": "AA:BB:CC:DD:EE:FF"}'></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Radios & Alarmes -->
+                            <div class="col-6">
+                                <div style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 20px; height: 100%; display: flex; flex-direction: column;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                                            <i data-lucide="radio" style="color: var(--primary);"></i>
+                                            Radio Streams & Utilitaires
+                                        </h3>
+                                        <label class="switch" style="margin: 0;">
+                                            <input type="checkbox" id="ENABLE_RADIO" name="ENABLE_RADIO">
+                                            <span class="slider round"></span>
+                                        </label>
+                                    </div>
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px;">Lisez vos radios internet favorites et programmez vos minuteurs.</p>
+                                    
+                                    <div class="form-group" style="margin-bottom: 12px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <label style="margin-bottom: 0;">Activer les minuteurs et alarmes</label>
+                                            <label class="switch" style="margin: 0;">
+                                                <input type="checkbox" id="ENABLE_TIMERS" name="ENABLE_TIMERS">
+                                                <span class="slider round"></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="flex-grow: 1;">
+                                        <label>Stations de Radio favorites (JSON)</label>
+                                        <textarea id="RADIO_STATIONS" name="RADIO_STATIONS" rows="3" style="font-family: monospace; font-size: 0.85rem; height: 100px; resize: vertical;" placeholder='{"France Info": "https://stream.radiofrance.fr/franceinfo/franceinfo.m3u8", "FIP": "https://stream.radiofrance.fr/fip/fip.m3u8"}'></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Section Chat -->
                 <div class="col-12" id="section-chat">
                     <div class="card">
@@ -886,7 +1143,13 @@
                         if (el) {
                             let val = data[key];
                             if (key === "WHISPER_LANGUAGE" && val === null) val = "auto";
-                            el.value = val;
+                            
+                            if (el.type === "checkbox") {
+                                el.checked = !!val;
+                            } else {
+                                el.value = val;
+                            }
+                            
                             if (key === "LLM_MODE") {
                                 document.getElementById('groqSettings').style.display = val === 'groq' ? 'block' : 'none';
                             }
@@ -1250,23 +1513,129 @@
                 });
         });
 
+        // --- Volume Slider Logic ---
+        const volumeSlider = document.getElementById('systemVolume');
+        const volumeValue = document.getElementById('volumeValue');
+        const volumeIcon = document.getElementById('volumeIcon');
+
+        function loadVolume() {
+            fetch('/api/system/volume')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.volume !== undefined) {
+                        volumeSlider.value = data.volume;
+                        volumeValue.textContent = data.volume + '%';
+                        updateVolumeIcon(data.volume);
+                    }
+                });
+        }
+
+        function updateVolumeIcon(vol) {
+            volumeIcon.className = ''; // Reset Lucide class
+            if (vol == 0) {
+                volumeIcon.setAttribute('data-lucide', 'volume-x');
+            } else if (vol < 40) {
+                volumeIcon.setAttribute('data-lucide', 'volume');
+            } else if (vol < 85) {
+                volumeIcon.setAttribute('data-lucide', 'volume-1');
+            } else {
+                volumeIcon.setAttribute('data-lucide', 'volume-2');
+            }
+            lucide.createIcons();
+        }
+
+        volumeSlider.addEventListener('input', e => {
+            const vol = e.target.value;
+            volumeValue.textContent = vol + '%';
+            updateVolumeIcon(vol);
+        });
+
+        let volumeTimeout;
+        volumeSlider.addEventListener('change', e => {
+            const vol = e.target.value;
+            clearTimeout(volumeTimeout);
+            volumeTimeout = setTimeout(() => {
+                fetch('/api/system/volume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ volume: parseInt(vol) })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        notify(`Volume réglé à ${vol}%`, "primary");
+                    }
+                });
+            }, 300);
+        });
+
+        // --- System Resource Monitoring Logic ---
+        function refreshSystemStats() {
+            fetch('/api/system/stats')
+                .then(res => {
+                    if (res.status === 401) return;
+                    return res.json();
+                })
+                .then(stats => {
+                    if (!stats) return;
+                    
+                    // CPU
+                    document.getElementById('cpuUsageVal').textContent = Math.round(stats.cpu_usage) + '%';
+                    document.getElementById('cpuUsageBar').style.width = stats.cpu_usage + '%';
+                    
+                    // RAM
+                    document.getElementById('ramUsageVal').textContent = `${stats.ram_usage}% (${stats.ram_used_mb}MB / ${stats.ram_total_mb}MB)`;
+                    document.getElementById('ramUsageBar').style.width = stats.ram_usage + '%';
+                    
+                    // Temp
+                    if (stats.cpu_temp !== null) {
+                        document.getElementById('tempWidget').classList.remove('hidden');
+                        document.getElementById('cpuTempVal').textContent = stats.cpu_temp + ' °C';
+                        const tempPercent = Math.min(100, Math.max(0, (stats.cpu_temp / 85) * 100));
+                        const bar = document.getElementById('cpuTempBar');
+                        bar.style.width = tempPercent + '%';
+                        
+                        if (stats.cpu_temp > 70) {
+                            bar.style.backgroundColor = 'var(--danger)';
+                        } else if (stats.cpu_temp > 50) {
+                            bar.style.backgroundColor = 'var(--warning)';
+                        } else {
+                            bar.style.backgroundColor = 'var(--success)';
+                        }
+                    } else {
+                        document.getElementById('tempWidget').classList.add('hidden');
+                    }
+                    
+                    // Disk
+                    document.getElementById('diskUsageVal').textContent = `${stats.disk_usage}% (${stats.disk_free_gb}GB dispo)`;
+                    document.getElementById('diskUsageBar').style.width = stats.disk_usage + '%';
+                });
+        }
+
         document.getElementById('btnScanBT').addEventListener('click', scanBT);
         document.getElementById('btnSendChat').addEventListener('click', sendChat);
         chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendChat(); });
         
         document.getElementById('configForm').addEventListener('submit', e => {
             e.preventDefault();
-            const formData = new FormData(e.target);
             const data = {};
-            formData.forEach((value, key) => {
-                if (value === "true") value = true;
-                else if (value === "false") value = false;
-                else if (key === "WHISPER_LANGUAGE" && value === "auto") value = null;
-                else if (!isNaN(value) && value !== "" && !key.includes('PIN')) {
-                    value = value.includes('.') ? parseFloat(value) : parseInt(value);
+            const elements = e.target.elements;
+            for (let i = 0; i < elements.length; i++) {
+                const el = elements[i];
+                if (!el.name) continue;
+                if (el.type === 'checkbox') {
+                    data[el.name] = el.checked;
+                } else {
+                    let value = el.value;
+                    if (value === "true") value = true;
+                    else if (value === "false") value = false;
+                    else if (el.name === "WHISPER_LANGUAGE" && value === "auto") value = null;
+                    else if (!isNaN(value) && value !== "" && !el.name.includes('PIN')) {
+                        value = value.includes('.') ? parseFloat(value) : parseInt(value);
+                    }
+                    data[el.name] = value;
                 }
-                data[key] = value;
-            });
+            }
 
             fetch('/api/config', {
                 method: 'POST',
@@ -1367,8 +1736,11 @@
         refreshLocalModels();
         checkDownloadStatus();
         startLogStreaming();
+        loadVolume();
+        refreshSystemStats();
         setInterval(refreshBT, 10000); // Polling every 10s
         setInterval(refreshLocalModels, 30000); // Polling models every 30s
+        setInterval(refreshSystemStats, 5000); // Polling resource stats every 5s
 
     </script>
 </body>

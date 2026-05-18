@@ -9,6 +9,8 @@ import bluetooth_manager
 import subprocess
 import threading
 import requests
+import shutil
+import re
 
 MODELS_DIR = os.path.expanduser("~/models")
 os.makedirs(MODELS_DIR, exist_ok=True)
@@ -219,6 +221,90 @@ def get_version():
         return jsonify({"version": "Inconnue"})
     except:
         return jsonify({"version": "Inconnue"})
+
+@app.route("/api/system/stats", methods=["GET"])
+def system_stats():
+    # Gather CPU usage & RAM usage using psutil
+    try:
+        import psutil
+        cpu_usage = psutil.cpu_percent()
+        ram = psutil.virtual_memory()
+        ram_usage = ram.percent
+        ram_total_mb = round(ram.total / (1024 * 1024))
+        ram_used_mb = round(ram.used / (1024 * 1024))
+    except Exception:
+        cpu_usage = 0
+        ram_usage = 0
+        ram_total_mb = 0
+        ram_used_mb = 0
+
+    # CPU Temperature
+    cpu_temp = None
+    try:
+        if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                cpu_temp = round(float(f.read().strip()) / 1000.0, 1)
+        else:
+            # Try vcgencmd for Raspberry Pi
+            res = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True, timeout=1)
+            if res.returncode == 0:
+                match = re.search(r"temp=([\d\.]+)", res.stdout)
+                if match:
+                    cpu_temp = float(match.group(1))
+    except Exception:
+        pass
+
+    # Disk usage
+    try:
+        disk = shutil.disk_usage("/")
+        disk_usage = round((disk.used / disk.total) * 100, 1)
+        disk_free_gb = round(disk.free / (1024 * 1024 * 1024), 1)
+    except Exception:
+        disk_usage = 0
+        disk_free_gb = 0
+
+    return jsonify({
+        "cpu_usage": cpu_usage,
+        "ram_usage": ram_usage,
+        "ram_total_mb": ram_total_mb,
+        "ram_used_mb": ram_used_mb,
+        "cpu_temp": cpu_temp,
+        "disk_usage": disk_usage,
+        "disk_free_gb": disk_free_gb
+    })
+
+@app.route("/api/system/volume", methods=["GET", "POST"])
+def system_volume():
+    if request.method == "POST":
+        data = request.json or {}
+        volume = data.get("volume")
+        if volume is not None:
+            try:
+                # Set volume using amixer
+                subprocess.run(["amixer", "sset", "Master", f"{volume}%"], capture_output=True, timeout=2)
+                # Also try to set PCM just in case Master is not the default controls
+                subprocess.run(["amixer", "sset", "PCM", f"{volume}%"], capture_output=True, timeout=2)
+                return jsonify({"status": "success", "volume": volume})
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": "Volume field required"}), 400
+    else:
+        # GET request
+        try:
+            res = subprocess.run(["amixer", "sget", "Master"], capture_output=True, text=True, timeout=2)
+            if res.returncode == 0:
+                match = re.search(r"\[(\d+)%\]", res.stdout)
+                if match:
+                    return jsonify({"volume": int(match.group(1))})
+            # Try PCM fallback
+            res_pcm = subprocess.run(["amixer", "sget", "PCM"], capture_output=True, text=True, timeout=2)
+            if res_pcm.returncode == 0:
+                match = re.search(r"\[(\d+)%\]", res_pcm.stdout)
+                if match:
+                    return jsonify({"volume": int(match.group(1))})
+        except Exception:
+            pass
+        return jsonify({"volume": 50}) # Fallback if error or Windows
 
 # --- Bluetooth API ---
 
