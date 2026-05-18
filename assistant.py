@@ -973,7 +973,16 @@ class TTSEngine:
                 play_cmd = f'paplay {tmp_path}'
             else:
                 play_cmd = f'aplay -D {shlex.quote(cfg.AUDIO_OUTPUT_DEVICE)} {tmp_path}'
-            subprocess.run(play_cmd, shell=True, check=True)
+            
+            try:
+                subprocess.run(play_cmd, shell=True, check=True)
+            except Exception as play_err:
+                if cfg.AUDIO_OUTPUT_DEVICE != "default":
+                    log.warning("Échec lecture Piper avec '%s' (%s). Tentative de repli sur 'default'...", cfg.AUDIO_OUTPUT_DEVICE, play_err)
+                    fallback_cmd = f'aplay -D default {tmp_path}'
+                    subprocess.run(fallback_cmd, shell=True, check=True)
+                else:
+                    raise play_err
         except Exception as e:
             log.error("Erreur Piper : %s — bascule pyttsx3", e)
             if not hasattr(self, "_engine"):
@@ -1022,7 +1031,13 @@ class TTSEngine:
             else:
                 subprocess.run(["aplay", "-D", cfg.AUDIO_OUTPUT_DEVICE, wav_path], check=True)
         except Exception as e:
-            log.error("Erreur lecture audio : %s", e)
+            log.error("Erreur lecture audio avec '%s' : %s", cfg.AUDIO_OUTPUT_DEVICE, e)
+            if cfg.AUDIO_OUTPUT_DEVICE != "default":
+                log.info("Tentative de repli audio automatique sur 'default'...")
+                try:
+                    subprocess.run(["aplay", "-D", "default", wav_path], check=True)
+                except Exception as fallback_err:
+                    log.error("Échec du repli audio sur 'default' : %s", fallback_err)
 
     def speak_streaming(self, sentence_generator):
         """

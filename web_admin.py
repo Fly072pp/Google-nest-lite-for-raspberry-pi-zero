@@ -147,7 +147,8 @@ def restart_app():
         time.sleep(1)
         # Attempt systemd restart if running as service
         try:
-            subprocess.run(["sudo", "systemctl", "restart", "voice-assistant"], check=True)
+            # We use --no-block to prevent circular deadlock since we are calling it from inside the service itself
+            subprocess.run(["sudo", "systemctl", "restart", "--no-block", "voice-assistant"], check=True)
         except:
             # Fallback to kill if systemctl fails. SIGKILL ensures systemd sees it as a failure to restart.
             os.kill(os.getpid(), signal.SIGKILL)
