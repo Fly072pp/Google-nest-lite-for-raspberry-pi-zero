@@ -14,7 +14,8 @@ class BluetoothManager:
         """Helper to run a simple bluetoothctl command and return output."""
         try:
             cmd_list = ["bluetoothctl"] + command.split()
-            result = subprocess.run(cmd_list, capture_output=True, text=True, timeout=10)
+            # Timeout court de 2 secondes max (fail-fast) pour éviter d'engorger le CPU du Pi Zero
+            result = subprocess.run(cmd_list, capture_output=True, text=True, timeout=2)
             return result.stdout
         except Exception as e:
             log.error(f"Bluetooth command error for '{command}': {e}")
@@ -79,7 +80,10 @@ class BluetoothManager:
 
     def get_paired_devices(self):
         """Returns list of all known devices (paired or trusted) from bluetoothctl."""
-        output = self._run_command("devices")
+        # On utilise "paired-devices" au lieu de "devices" pour ne requêter les détails 
+        # que pour nos propres appareils appairés, évitant de boucler sur les dizaines 
+        # d'appareils de passage détectés dans le voisinage.
+        output = self._run_command("paired-devices")
         devices = []
         for line in output.splitlines():
             match = re.search(r"Device\s+(([0-9A-F]{2}:?){6})\s+(.*)", line, re.I)

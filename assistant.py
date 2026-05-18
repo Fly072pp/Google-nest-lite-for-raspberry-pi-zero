@@ -664,12 +664,13 @@ class WhisperTranscriber:
         try:
             log.info("Chargement de Whisper (%s / %s)…", cfg.WHISPER_MODEL, cfg.WHISPER_COMPUTE_TYPE)
             from faster_whisper import WhisperModel
+            # Optimisation Pi Zero 2W : 2 threads max pour éviter la surchauffe et la baisse de fréquence CPU (throttling)
             self._model = WhisperModel(
                 cfg.WHISPER_MODEL,
                 device=cfg.WHISPER_DEVICE,
                 compute_type=cfg.WHISPER_COMPUTE_TYPE,
                 download_root=str(Path.home() / ".cache" / "whisper"),
-                cpu_threads=cfg.LLM_N_THREADS,
+                cpu_threads=2,
                 num_workers=1,
             )
             log.info("Whisper prêt.")
@@ -684,7 +685,7 @@ class WhisperTranscriber:
             language=cfg.WHISPER_LANGUAGE,
             beam_size=1,           # beam=1 = plus rapide, moins de RAM
             best_of=1,
-            vad_filter=True,       # filtre le bruit de fond
+            vad_filter=False,      # Désactivé car l'audio est déjà détouré lors de l'enregistrement (RMS VAD)
         )
         text = " ".join(seg.text.strip() for seg in segments).strip()
         log.info("📝 Transcription [%s] : « %s »", info.language, text)
@@ -735,9 +736,11 @@ class LLMEngine:
         log.info("Mode LLM API : %s → %s", cfg.LLM_API_BASE, cfg.LLM_API_MODEL)
         try:
             from openai import OpenAI
+            # Timeout court de 5.0s pour éviter des blocages prolongés
             self._client = OpenAI(
                 base_url=cfg.LLM_API_BASE,
                 api_key=cfg.LLM_API_KEY,
+                timeout=5.0,
             )
         except ImportError:
             raise ImportError("Installez openai : pip install openai")
@@ -751,9 +754,11 @@ class LLMEngine:
             return
         try:
             from openai import OpenAI
+            # Timeout court de 5.0s pour éviter des blocages prolongés
             self._client = OpenAI(
                 base_url="https://api.groq.com/openai/v1",
                 api_key=cfg.GROQ_API_KEY,
+                timeout=5.0,
             )
             self._mode = "groq"
         except ImportError:
@@ -1211,7 +1216,8 @@ class VoiceAssistant:
         if any(w in t for w in ("réinitialise", "reset", "oublie tout")):
             self.llm.reset_history()
             return "Historique effacé."
-        if any(w in t for w in ("quelle heure", "il est quelle heure")):
+        # Match ultra-robuste aux variations et fautes de transcription Whisper pour l'heure (évite de basculer vers le LLM)
+        if any(w in t for w in ("heure", "heur", "eur", "time", "l'heure")):
             h = time.strftime("%H heures %M")
             return f"Il est {h}."
         if any(w in t for w in ("au revoir", "stop", "quitte", "arrête")):
