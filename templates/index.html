@@ -145,10 +145,11 @@
 
         .col-8 { grid-column: span 8; }
         .col-4 { grid-column: span 4; }
+        .col-6 { grid-column: span 6; }
         .col-12 { grid-column: span 12; }
 
         @media (max-width: 1024px) {
-            .col-8, .col-4 { grid-column: span 12; }
+            .col-8, .col-4, .col-6 { grid-column: span 12; }
         }
 
         /* --- Cards --- */
@@ -1616,6 +1617,17 @@
         document.getElementById('btnSendChat').addEventListener('click', sendChat);
         chatInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendChat(); });
         
+        // Block "Enter" keypress in text inputs from triggering form submit / auto-saving
+        document.getElementById('configForm').addEventListener('keypress', e => {
+            if (e.key === 'Enter') {
+                const target = e.target;
+                if (target.tagName !== 'TEXTAREA' && target.type !== 'submit') {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+
         document.getElementById('configForm').addEventListener('submit', e => {
             e.preventDefault();
             const data = {};
